@@ -376,10 +376,15 @@ div[data-testid="stMetric"] {
     background: rgba(255,255,255,0.42);
     padding: 0.45rem 0.7rem;
     min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
 div[data-testid="stMetricLabel"] {
     overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
 }
 
 div[data-testid="stMetricValue"] {
@@ -387,6 +392,19 @@ div[data-testid="stMetricValue"] {
     line-height: 1.05;
     overflow-wrap: anywhere;
     word-break: break-word;
+    white-space: normal;
+    min-width: 0;
+}
+
+div[data-testid="stMetricLabel"] > div,
+div[data-testid="stMetricValue"] > div {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+}
+
+[data-testid="column"] {
+    min-width: 0;
 }
 
 hr {

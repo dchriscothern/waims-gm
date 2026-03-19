@@ -1,28 +1,28 @@
 from __future__ import annotations
-
-import os
 from functools import lru_cache
 from typing import Dict, List, Literal, Optional, TypedDict
 
 import httpx
-from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwk, jwt
 from jose.utils import base64url_decode
 from pydantic import BaseModel, Field
 
+from app.config import (
+    IS_LIVE_ENV,
+    SUPABASE_ANON_KEY,
+    SUPABASE_ISSUER,
+    SUPABASE_JWT_AUD,
+    SUPABASE_URL,
+    WAIMS_ENV,
+    WAIMS_ENV_LABEL,
+)
 from waims_gm.domain import Player, TeamContext
 from waims_gm.services import evaluate_single_player
 
-
-load_dotenv()
-
-SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
-SUPABASE_JWT_AUD = os.getenv("SUPABASE_JWT_AUD", "authenticated")
-SUPABASE_ISSUER = f"{SUPABASE_URL}/auth/v1" if SUPABASE_URL else ""
-
-app = FastAPI(title="WAIMS GM API", version="0.1.0")
+app = FastAPI(title="WAIMS GM API", version="0.2.0")
+security = HTTPBearer()
 
 
 class PlayerIn(BaseModel):
@@ -45,7 +45,6 @@ class PlayerIn(BaseModel):
 
 
 class TeamContextIn(BaseModel):
-    gm_id: str
     team_id: str
     timeline: Literal["win_now", "balanced", "rebuild"]
     needs_by_position: Dict[str, float]
@@ -56,6 +55,7 @@ class TeamContextIn(BaseModel):
 class EvaluateRequest(BaseModel):
     player: PlayerIn
     ctx: TeamContextIn
+    mode: Optional[str] = "pro_wnba"
 
 
 class EvaluationOut(BaseModel):
@@ -71,10 +71,53 @@ class EvaluateAndSaveRequest(BaseModel):
     player: PlayerIn
     ctx: TeamContextIn
     display_name: Optional[str] = None
+    summary_note: Optional[str] = None
+    strengths: Optional[str] = None
+    concerns: Optional[str] = None
+    mode: Optional[str] = "pro_wnba"
 
 
 class EvaluateAndSaveOut(EvaluationOut):
     evaluation_id: str
+    summary_note: Optional[str] = None
+    strengths: Optional[str] = None
+    concerns: Optional[str] = None
+    mode: Optional[str] = None
+
+
+class EvaluationListItem(BaseModel):
+    id: str
+    gm_id: str
+    team_id: Optional[str] = None
+    overall_score: float
+    recommended_action: str
+    created_at: Optional[str] = None
+    player: Dict
+    summary_note: Optional[str] = None
+    mode: Optional[str] = None
+
+
+class EvaluationDetailOut(BaseModel):
+    id: str
+    gm_id: str
+    team_id: Optional[str] = None
+    overall_score: float
+    components: Dict[str, float]
+    assumptions: Dict[str, str]
+    tension_points: List[str]
+    recommended_action: str
+    player: Dict
+    ctx: Dict
+    created_at: Optional[str] = None
+    summary_note: Optional[str] = None
+    strengths: Optional[str] = None
+    concerns: Optional[str] = None
+    mode: Optional[str] = None
+
+
+class DeleteOut(BaseModel):
+    ok: bool
+    deleted_id: str
 
 
 class AuthedGM(TypedDict):
@@ -148,10 +191,10 @@ def _verify_supabase_jwt(token: str) -> dict:
     return claims
 
 
-def get_current_gm(authorization: str = Header(default="")) -> AuthedGM:
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing Bearer token")
-    token = authorization.split(" ", 1)[1].strip()
+def get_current_gm(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> AuthedGM:
+    token = credentials.credentials
     claims = _verify_supabase_jwt(token)
     return {"gm_id": claims["sub"], "token": token}
 
@@ -165,15 +208,113 @@ def _sb_headers(user_token: str) -> dict:
     }
 
 
+def sb_headers(user_token: str) -> dict:
+    return _sb_headers(user_token)
+
+
+def _raise_for_supabase_error(action: str, response: httpx.Response) -> None:
+    if response.status_code in (200, 201, 204):
+        return
+
+    detail = f"Supabase {action} failed: {response.status_code} {response.text}"
+
+    if response.status_code == 401:
+        raise HTTPException(status_code=401, detail=detail)
+    if response.status_code == 403:
+        raise HTTPException(status_code=403, detail=detail)
+    if response.status_code == 404:
+        raise HTTPException(status_code=404, detail=detail)
+    if response.status_code in (400, 409, 422):
+        raise HTTPException(status_code=400, detail=detail)
+
+    raise HTTPException(status_code=500, detail=detail)
+
+
+def _perform_supabase_request(action: str, request_fn):
+    try:
+        return request_fn()
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Supabase {action} request failed: {exc}",
+        ) from exc
+
+
+def upsert_gm_profile(*, gm_id: str, user_token: str, display_name: Optional[str] = None) -> None:
+    profile_payload = {"gm_id": gm_id}
+    if display_name:
+        profile_payload["display_name"] = display_name
+
+    with httpx.Client(timeout=15) as client:
+        prof_url = f"{SUPABASE_URL}/rest/v1/gm_profiles?on_conflict=gm_id"
+        prof_headers = _sb_headers(user_token) | {
+            "Prefer": "resolution=merge-duplicates,return=minimal"
+        }
+        response = _perform_supabase_request(
+            "profile upsert",
+            lambda: client.post(prof_url, headers=prof_headers, json=profile_payload),
+        )
+        _raise_for_supabase_error("profile upsert", response)
+
+
+def insert_evaluation(
+    *,
+    gm_id: str,
+    user_token: str,
+    ctx_dict: Dict,
+    scorecard,
+    summary_note: Optional[str] = None,
+    strengths: Optional[str] = None,
+    concerns: Optional[str] = None,
+    mode: Optional[str] = None,
+) -> str:
+    eval_payload = {
+        "gm_id": gm_id,
+        "team_id": ctx_dict["team_id"],
+        "player": scorecard.player.__dict__,
+        "ctx": ctx_dict,
+        "overall_score": scorecard.overall_score,
+        "components": scorecard.components,
+        "assumptions": scorecard.assumptions,
+        "tension_points": scorecard.tension_points,
+        "recommended_action": scorecard.recommended_action,
+        "summary_note": summary_note,
+        "strengths": strengths,
+        "concerns": concerns,
+        "mode": mode,
+    }
+
+    with httpx.Client(timeout=15) as client:
+        eval_url = f"{SUPABASE_URL}/rest/v1/gm_evaluations"
+        eval_headers = _sb_headers(user_token) | {"Prefer": "return=representation"}
+        response = _perform_supabase_request(
+            "evaluation insert",
+            lambda: client.post(eval_url, headers=eval_headers, json=eval_payload),
+        )
+        _raise_for_supabase_error("evaluation insert", response)
+        created = response.json()
+        evaluation_id = created[0]["id"] if isinstance(created, list) and created else created.get("id")
+        return str(evaluation_id)
+
+
 @app.get("/health")
 def health():
-    return {"ok": True}
+    return {
+        "ok": True,
+        "environment": WAIMS_ENV,
+        "environment_label": WAIMS_ENV_LABEL,
+        "live": IS_LIVE_ENV,
+    }
 
 
 @app.post("/evaluate", response_model=EvaluationOut)
 def evaluate(req: EvaluateRequest):
+    ctx_dict = req.ctx.model_dump()
+    ctx_dict["gm_id"] = "anonymous-preview"
+    ctx_dict["mode"] = req.mode or "pro_wnba"
+
     player = Player(**req.player.model_dump())
-    ctx = TeamContext(**req.ctx.model_dump())
+    ctx = TeamContext(**ctx_dict)
     scorecard = evaluate_single_player(player, ctx)
 
     return EvaluationOut(
@@ -187,44 +328,33 @@ def evaluate(req: EvaluateRequest):
 
 
 @app.post("/evaluate-and-save", response_model=EvaluateAndSaveOut)
-def evaluate_and_save(req: EvaluateAndSaveRequest, gm: AuthedGM = Depends(get_current_gm)):
+def evaluate_and_save(
+    req: EvaluateAndSaveRequest,
+    gm: AuthedGM = Depends(get_current_gm),
+):
     ctx_dict = req.ctx.model_dump()
     ctx_dict["gm_id"] = gm["gm_id"]
+    ctx_dict["mode"] = req.mode or "pro_wnba"
 
     player = Player(**req.player.model_dump())
     ctx = TeamContext(**ctx_dict)
     scorecard = evaluate_single_player(player, ctx)
 
-    profile_payload = {"gm_id": gm["gm_id"]}
-    if req.display_name:
-        profile_payload["display_name"] = req.display_name
-
-    with httpx.Client(timeout=15) as client:
-        prof_url = f"{SUPABASE_URL}/rest/v1/gm_profiles?on_conflict=gm_id"
-        prof_headers = _sb_headers(gm["token"]) | {"Prefer": "resolution=merge-duplicates,return=minimal"}
-        r1 = client.post(prof_url, headers=prof_headers, json=profile_payload)
-        if r1.status_code not in (200, 201, 204):
-            raise HTTPException(status_code=500, detail=f"Supabase profile upsert failed: {r1.status_code} {r1.text}")
-
-        eval_url = f"{SUPABASE_URL}/rest/v1/gm_evaluations"
-        eval_headers = _sb_headers(gm["token"]) | {"Prefer": "return=representation"}
-        eval_payload = {
-            "gm_id": gm["gm_id"],
-            "team_id": ctx.team_id,
-            "player": scorecard.player.__dict__,
-            "ctx": ctx_dict,
-            "overall_score": scorecard.overall_score,
-            "components": scorecard.components,
-            "assumptions": scorecard.assumptions,
-            "tension_points": scorecard.tension_points,
-            "recommended_action": scorecard.recommended_action,
-        }
-        r2 = client.post(eval_url, headers=eval_headers, json=eval_payload)
-        if r2.status_code not in (200, 201):
-            raise HTTPException(status_code=500, detail=f"Supabase evaluation insert failed: {r2.status_code} {r2.text}")
-
-        created = r2.json()
-        evaluation_id = created[0]["id"] if isinstance(created, list) and created else created.get("id")
+    upsert_gm_profile(
+        gm_id=gm["gm_id"],
+        user_token=gm["token"],
+        display_name=req.display_name,
+    )
+    evaluation_id = insert_evaluation(
+        gm_id=gm["gm_id"],
+        user_token=gm["token"],
+        ctx_dict=ctx_dict,
+        scorecard=scorecard,
+        summary_note=req.summary_note,
+        strengths=req.strengths,
+        concerns=req.concerns,
+        mode=req.mode,
+    )
 
     return EvaluateAndSaveOut(
         evaluation_id=str(evaluation_id),
@@ -234,4 +364,120 @@ def evaluate_and_save(req: EvaluateAndSaveRequest, gm: AuthedGM = Depends(get_cu
         tension_points=scorecard.tension_points,
         recommended_action=scorecard.recommended_action,
         player=scorecard.player.__dict__,
+        summary_note=req.summary_note,
+        strengths=req.strengths,
+        concerns=req.concerns,
+        mode=req.mode,
     )
+
+
+@app.get("/evaluations", response_model=List[EvaluationListItem])
+def list_evaluations(gm: AuthedGM = Depends(get_current_gm)):
+    url = (
+        f"{SUPABASE_URL}/rest/v1/gm_evaluations"
+        f"?gm_id=eq.{gm['gm_id']}"
+        f"&select=id,gm_id,team_id,overall_score,recommended_action,created_at,player,summary_note,mode"
+        f"&order=created_at.desc"
+    )
+
+    with httpx.Client(timeout=15) as client:
+        r = _perform_supabase_request(
+            "evaluation list",
+            lambda: client.get(url, headers=_sb_headers(gm["token"])),
+        )
+        _raise_for_supabase_error("evaluation list", r)
+        rows = r.json()
+
+    return [
+        EvaluationListItem(
+            id=str(row["id"]),
+            gm_id=str(row["gm_id"]),
+            team_id=row.get("team_id"),
+            overall_score=row["overall_score"],
+            recommended_action=row["recommended_action"],
+            created_at=row.get("created_at"),
+            player=row["player"],
+            summary_note=row.get("summary_note"),
+            mode=row.get("mode"),
+        )
+        for row in rows
+    ]
+
+
+@app.get("/evaluations/{evaluation_id}", response_model=EvaluationDetailOut)
+def get_evaluation(evaluation_id: str, gm: AuthedGM = Depends(get_current_gm)):
+    url = (
+        f"{SUPABASE_URL}/rest/v1/gm_evaluations"
+        f"?id=eq.{evaluation_id}"
+        f"&gm_id=eq.{gm['gm_id']}"
+        f"&select=id,gm_id,team_id,overall_score,components,assumptions,tension_points,recommended_action,player,ctx,created_at,summary_note,strengths,concerns,mode"
+    )
+
+    with httpx.Client(timeout=15) as client:
+        r = _perform_supabase_request(
+            "evaluation detail",
+            lambda: client.get(url, headers=_sb_headers(gm["token"])),
+        )
+        _raise_for_supabase_error("evaluation detail", r)
+        rows = r.json()
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="Evaluation not found")
+
+    row = rows[0]
+    return EvaluationDetailOut(
+        id=str(row["id"]),
+        gm_id=str(row["gm_id"]),
+        team_id=row.get("team_id"),
+        overall_score=row["overall_score"],
+        components=row.get("components", {}),
+        assumptions=row.get("assumptions", {}),
+        tension_points=row.get("tension_points", []),
+        recommended_action=row["recommended_action"],
+        player=row["player"],
+        ctx=row["ctx"],
+        created_at=row.get("created_at"),
+        summary_note=row.get("summary_note"),
+        strengths=row.get("strengths"),
+        concerns=row.get("concerns"),
+        mode=row.get("mode"),
+    )
+
+
+@app.delete("/evaluations/{evaluation_id}", response_model=DeleteOut)
+def delete_evaluation(evaluation_id: str, gm: AuthedGM = Depends(get_current_gm)):
+    check_url = (
+        f"{SUPABASE_URL}/rest/v1/gm_evaluations"
+        f"?id=eq.{evaluation_id}"
+        f"&gm_id=eq.{gm['gm_id']}"
+        f"&select=id"
+    )
+
+    with httpx.Client(timeout=15) as client:
+        check = _perform_supabase_request(
+            "evaluation ownership check",
+            lambda: client.get(check_url, headers=_sb_headers(gm["token"])),
+        )
+        _raise_for_supabase_error("evaluation ownership check", check)
+        rows = check.json()
+
+        if not rows:
+            raise HTTPException(status_code=404, detail="Evaluation not found")
+
+        delete_url = (
+            f"{SUPABASE_URL}/rest/v1/gm_evaluations"
+            f"?id=eq.{evaluation_id}"
+            f"&gm_id=eq.{gm['gm_id']}"
+        )
+        delete_headers = _sb_headers(gm["token"]) | {"Prefer": "return=representation"}
+        r = _perform_supabase_request(
+            "evaluation delete",
+            lambda: client.delete(delete_url, headers=delete_headers),
+        )
+        _raise_for_supabase_error("evaluation delete", r)
+
+        deleted_rows = r.json() if r.text else []
+        if not deleted_rows:
+            raise HTTPException(status_code=404, detail="Evaluation not deleted")
+
+    return DeleteOut(ok=True, deleted_id=evaluation_id)

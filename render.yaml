@@ -1,0 +1,78 @@
+services:
+  - type: web
+    name: waims-gm-api-sandbox
+    runtime: python
+    plan: starter
+    buildCommand: pip install -e .
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: WAIMS_ENV
+        value: sandbox
+      - key: WAIMS_ENV_LABEL
+        value: Sandbox
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_JWT_AUD
+        value: authenticated
+
+  - type: web
+    name: waims-gm-ui-sandbox
+    runtime: python
+    plan: starter
+    buildCommand: pip install -e .
+    startCommand: python -m streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: WAIMS_ENV
+        value: sandbox
+      - key: WAIMS_ENV_LABEL
+        value: Sandbox
+      - key: API_SCHEME
+        value: http
+      - key: API_HOSTPORT
+        fromService:
+          type: web
+          name: waims-gm-api-sandbox
+          property: hostport
+
+  - type: web
+    name: waims-gm-api-live
+    runtime: python
+    plan: starter
+    buildCommand: pip install -e .
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: WAIMS_ENV
+        value: live
+      - key: WAIMS_ENV_LABEL
+        value: Live
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_JWT_AUD
+        value: authenticated
+
+  - type: web
+    name: waims-gm-ui-live
+    runtime: python
+    plan: starter
+    buildCommand: pip install -e .
+    startCommand: python -m streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: WAIMS_ENV
+        value: live
+      - key: WAIMS_ENV_LABEL
+        value: Live
+      - key: API_SCHEME
+        value: http
+      - key: API_HOSTPORT
+        fromService:
+          type: web
+          name: waims-gm-api-live
+          property: hostport

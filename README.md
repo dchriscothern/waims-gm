@@ -179,6 +179,13 @@ Run tests with:
 C:\GitHub\waims-gm\.venv\Scripts\python.exe -m pytest -q
 ```
 
+## Demo and Sandbox Assets
+
+Useful repo assets for demos and environment setup:
+
+- demo walkthrough: [DEMO_SCRIPT.md](C:/GitHub/waims-gm/DEMO_SCRIPT.md)
+- Supabase schema and RLS setup: [supabase/waims_gm_schema.sql](C:/GitHub/waims-gm/supabase/waims_gm_schema.sql)
+
 ## Preflight Checklist
 
 Before local demos or deployment, run the preflight script:

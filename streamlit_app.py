@@ -331,6 +331,40 @@ html, body, [data-testid="stAppViewContainer"] {
     align-items: stretch;
 }
 
+.profile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+    gap: 0.75rem;
+}
+
+.profile-card {
+    background: rgba(255,255,255,0.50);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 0.8rem 0.9rem;
+    min-height: 108px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.profile-label {
+    color: var(--muted);
+    font-size: 0.95rem;
+    margin-bottom: 0.35rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.profile-value {
+    font-family: "Playfair Display", serif;
+    font-size: clamp(1.9rem, 3.4vw, 3rem);
+    line-height: 1.02;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
 .score-card {
     background: rgba(255,255,255,0.50);
     border: 1px solid var(--line);
@@ -1175,6 +1209,29 @@ def render_score_cards(detail: Dict[str, Any], components: Dict[str, Any]) -> No
     )
 
 
+def render_profile_cards(items: List[tuple[str, Any]]) -> None:
+    cards = []
+    for label, value in items:
+        display = "—" if value in (None, "", "—") else value
+        cards.append(
+            f"""
+            <div class="profile-card">
+                <div class="profile-label">{label}</div>
+                <div class="profile-value">{display}</div>
+            </div>
+            """
+        )
+
+    st.markdown(
+        f"""
+        <div class="profile-grid">
+            {''.join(cards)}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_detail(detail: Dict[str, Any]) -> None:
     detail = normalize_detail_for_display(detail)
     player = detail.get("player", {}) or {}
@@ -1212,17 +1269,16 @@ def render_detail(detail: Dict[str, Any]) -> None:
     top_left, top_right = st.columns([0.95, 1.2], gap="large")
 
     with top_left:
-        r1c1, r1c2 = st.columns(2)
-        r1c1.metric("Age", player.get("age", "—"))
-        r1c2.metric("Position", player.get("position", "—"))
-
-        r2c1, r2c2 = st.columns(2)
-        r2c1.metric("Cost Tier", player.get("expected_cost_tier", "—"))
-        r2c2.metric("Health Risk", player.get("health_risk", "—"))
-
-        r3c1, r3c2 = st.columns(2)
-        r3c1.metric("Upside", player.get("upside", "—"))
-        r3c2.metric("Minutes Stability", player.get("minutes_stability", "—"))
+        render_profile_cards(
+            [
+                ("Age", player.get("age", "—")),
+                ("Position", player.get("position", "—")),
+                ("Cost Tier", player.get("expected_cost_tier", "—")),
+                ("Health Risk", player.get("health_risk", "—")),
+                ("Upside", player.get("upside", "—")),
+                ("Minutes Stability", player.get("minutes_stability", "—")),
+            ]
+        )
 
         st.markdown(
             f"""

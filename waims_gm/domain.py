@@ -37,6 +37,7 @@ class TeamContext:
     needs_by_position: Dict[str, float]  # 0..1 per position
     cap_flexibility: float  # 0..1
     risk_tolerance: float  # 0..1
+    mode: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -48,3 +49,13 @@ class EvaluationScorecard:
     tension_points: List[str]
     recommended_action: Action
     runner_up_reason: Optional[str] = None
+
+
+@dataclass
+class Scorecard:
+    overall_score: float
+    components: Dict[str, float]
+    assumptions: Dict[str, str]
+    tension_points: List[str]
+    recommended_action: str
+    player: Player

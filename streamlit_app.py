@@ -1306,7 +1306,25 @@ def render_soft_card_grid(items: List[Dict[str, str]], columns_per_row: int = 2,
                 )
 
 
-def render_detail(detail: Dict[str, Any]) -> None:
+def render_five_layer_diagnostic(detail: Dict[str, Any]) -> None:
+    st.markdown('<div class="section-kicker" style="margin-top:1rem;">Diagnostic Layer</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Five Layer Diagnostic</div>', unsafe_allow_html=True)
+    for row in compute_five_layer_diagnostic(detail):
+        st.markdown(
+            f"""
+            <div class="soft-card" style="margin-bottom:0.75rem;">
+                <div class="board-head">
+                    <div class="mini-label" style="margin-bottom:0;">{row['layer']}</div>
+                    <div class="board-tag">{row['grade']}</div>
+                </div>
+                <div class="memo-text" style="margin-top:0.45rem;">{row['note']}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def render_detail(detail: Dict[str, Any], show_diagnostic: bool = True) -> None:
     detail = normalize_detail_for_display(detail)
     player = detail.get("player", {}) or {}
     ctx = detail.get("ctx", {}) or {}
@@ -1439,21 +1457,8 @@ def render_detail(detail: Dict[str, Any]) -> None:
             unsafe_allow_html=True,
         )
 
-    st.markdown('<div class="section-kicker" style="margin-top:1rem;">Diagnostic Layer</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Five Layer Diagnostic</div>', unsafe_allow_html=True)
-    for row in compute_five_layer_diagnostic(detail):
-        st.markdown(
-            f"""
-            <div class="soft-card" style="margin-bottom:0.75rem;">
-                <div class="board-head">
-                    <div class="mini-label" style="margin-bottom:0;">{row['layer']}</div>
-                    <div class="board-tag">{row['grade']}</div>
-                </div>
-                <div class="memo-text" style="margin-top:0.45rem;">{row['note']}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    if show_diagnostic:
+        render_five_layer_diagnostic(detail)
 
 
 def render_compare_block(left_detail: Dict[str, Any], right_detail: Dict[str, Any]) -> None:
@@ -2152,70 +2157,79 @@ def main() -> None:
             except Exception as e:
                 st.error(f"Unexpected error deleting evaluation: {e}")
 
+    detail = None
+    compare_detail = None
+    player_name = "player"
+    selected_id = None
+
     with board_col:
         render_summary_cards(evaluations)
         st.markdown(f"<div class='filter-note'>Showing {len(evaluations)} evaluation(s) after filters and sorting.</div>", unsafe_allow_html=True)
 
-        left, right = st.columns([0.68, 1.62], gap="large")
+        left, right = st.columns([0.78, 1.52], gap="large")
         with left:
             selected_id = render_decision_board(evaluations)
 
         with right:
             if not selected_id:
                 st.info("No evaluation selected.")
-                return
+            else:
+                try:
+                    detail = get_evaluation_detail(token, selected_id)
+                    render_detail(detail, show_diagnostic=False)
 
-            try:
-                detail = get_evaluation_detail(token, selected_id)
-                render_detail(detail)
+                    player_name = (detail.get("player") or {}).get("name", "player").replace(" ", "_")
+                    export_md = build_export_markdown(detail)
+                    st.download_button(
+                        "Download dossier (.md)",
+                        data=export_md,
+                        file_name=f"{player_name}_waims_gm_dossier.md",
+                        mime="text/markdown",
+                    )
 
-                player_name = (detail.get("player") or {}).get("name", "player").replace(" ", "_")
-                export_md = build_export_markdown(detail)
-                st.download_button(
-                    "Download dossier (.md)",
-                    data=export_md,
-                    file_name=f"{player_name}_waims_gm_dossier.md",
-                    mime="text/markdown",
-                )
+                    if WORD_EXPORT_AVAILABLE:
+                        try:
+                            export_docx = build_export_docx_bytes(detail)
+                            st.download_button(
+                                "Download dossier (.docx)",
+                                data=export_docx,
+                                file_name=f"{player_name}_waims_gm_dossier.docx",
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            )
+                        except Exception as e:
+                            st.warning(f"Word export failed, but the rest of the app is still available. Details: {e}")
+                    else:
+                        st.info("Word export is unavailable on this environment. Markdown export is still available.")
 
-                if WORD_EXPORT_AVAILABLE:
-                    try:
-                        export_docx = build_export_docx_bytes(detail)
-                        st.download_button(
-                            "Download dossier (.docx)",
-                            data=export_docx,
-                            file_name=f"{player_name}_waims_gm_dossier.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        )
-                    except Exception as e:
-                        st.warning(f"Word export failed, but the rest of the app is still available. Details: {e}")
-                else:
-                    st.info("Word export is unavailable on this environment. Markdown export is still available.")
+                    compare_options = [e for e in evaluations if e["id"] != selected_id]
+                    if compare_options:
+                        compare_map = {
+                            f"{(e.get('player') or {}).get('name', 'Player')} | {format_score(e.get('overall_score'))} | {MODE_LABELS.get(e.get('mode') or 'pro_wnba', e.get('mode') or 'pro_wnba')}": e["id"]
+                            for e in compare_options
+                        }
+                        selected_compare = st.selectbox("Compare against", ["None"] + list(compare_map.keys()))
+                        if selected_compare != "None":
+                            compare_detail = get_evaluation_detail(token, compare_map[selected_compare])
 
-                compare_options = [e for e in evaluations if e["id"] != selected_id]
-                if compare_options:
-                    compare_map = {
-                        f"{(e.get('player') or {}).get('name', 'Player')} | {format_score(e.get('overall_score'))} | {MODE_LABELS.get(e.get('mode') or 'pro_wnba', e.get('mode') or 'pro_wnba')}": e["id"]
-                        for e in compare_options
-                    }
-                    selected_compare = st.selectbox("Compare against", ["None"] + list(compare_map.keys()))
-                    if selected_compare != "None":
-                        compare_detail = get_evaluation_detail(token, compare_map[selected_compare])
-                        render_compare_block(detail, compare_detail)
-                        compare_name = ((compare_detail.get("player") or {}).get("name", "comparison")).replace(" ", "_")
-                        compare_export_md = build_compare_export_markdown(detail, compare_detail)
-                        st.download_button(
-                            "Download comparison brief (.md)",
-                            data=compare_export_md,
-                            file_name=f"{player_name}_vs_{compare_name}_waims_gm_compare.md",
-                            mime="text/markdown",
-                            key=f"compare_export_{selected_id}",
-                        )
+                except httpx.HTTPStatusError as e:
+                    st.error(f"API error loading detail: {e.response.status_code} {e.response.text}")
+                except Exception as e:
+                    st.error(f"Unexpected error loading detail: {e}")
 
-            except httpx.HTTPStatusError as e:
-                st.error(f"API error loading detail: {e.response.status_code} {e.response.text}")
-            except Exception as e:
-                st.error(f"Unexpected error loading detail: {e}")
+    if detail:
+        render_five_layer_diagnostic(detail)
+
+        if compare_detail:
+            render_compare_block(detail, compare_detail)
+            compare_name = ((compare_detail.get("player") or {}).get("name", "comparison")).replace(" ", "_")
+            compare_export_md = build_compare_export_markdown(detail, compare_detail)
+            st.download_button(
+                "Download comparison brief (.md)",
+                data=compare_export_md,
+                file_name=f"{player_name}_vs_{compare_name}_waims_gm_compare.md",
+                mime="text/markdown",
+                key=f"compare_export_{selected_id}",
+            )
 
 
 if __name__ == "__main__":

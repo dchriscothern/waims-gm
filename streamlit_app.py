@@ -995,6 +995,65 @@ def build_comparison_verdicts(left_detail: Dict[str, Any], right_detail: Dict[st
     return verdicts
 
 
+def build_compare_decision_snapshot(left_detail: Dict[str, Any], right_detail: Dict[str, Any]) -> List[Dict[str, str]]:
+    left_name = (left_detail.get("player") or {}).get("name", "Selected Player")
+    right_name = (right_detail.get("player") or {}).get("name", "Comparison Player")
+    mode = left_detail.get("mode") or right_detail.get("mode") or "pro_wnba"
+
+    lane_weights = {
+        "pro_wnba": {
+            "win_now": {"fit": 0.34, "impact": 0.34, "availability": 0.22, "value": 0.07, "upside": 0.03},
+            "asset": {"fit": 0.18, "impact": 0.18, "availability": 0.14, "value": 0.18, "upside": 0.32},
+            "efficiency": {"fit": 0.22, "impact": 0.12, "availability": 0.16, "value": 0.40, "upside": 0.10},
+        },
+        "cbb_high_major": {
+            "win_now": {"fit": 0.32, "impact": 0.31, "availability": 0.16, "value": 0.07, "upside": 0.14},
+            "asset": {"fit": 0.20, "impact": 0.13, "availability": 0.10, "value": 0.17, "upside": 0.40},
+            "efficiency": {"fit": 0.25, "impact": 0.10, "availability": 0.12, "value": 0.38, "upside": 0.15},
+        },
+        "cbb_d2_low_resource": {
+            "win_now": {"fit": 0.32, "impact": 0.18, "availability": 0.22, "value": 0.22, "upside": 0.06},
+            "asset": {"fit": 0.18, "impact": 0.08, "availability": 0.10, "value": 0.19, "upside": 0.45},
+            "efficiency": {"fit": 0.26, "impact": 0.08, "availability": 0.16, "value": 0.42, "upside": 0.08},
+        },
+        "recruiting_only": {
+            "win_now": {"fit": 0.22, "impact": 0.10, "availability": 0.10, "value": 0.12, "upside": 0.46},
+            "asset": {"fit": 0.18, "impact": 0.06, "availability": 0.06, "value": 0.12, "upside": 0.58},
+            "efficiency": {"fit": 0.21, "impact": 0.05, "availability": 0.08, "value": 0.28, "upside": 0.38},
+        },
+    }
+    lane_meta = {
+        "win_now": ("Best current rotation answer", "best matches the immediate roster problem"),
+        "asset": ("Best long-term asset bet", "carries the strongest future-facing return profile"),
+        "efficiency": ("Best value decision", "gives the cleanest return relative to cost and risk"),
+    }
+    weights_by_lane = lane_weights.get(mode, lane_weights["pro_wnba"])
+
+    def lane_score(detail: Dict[str, Any], weights: Dict[str, float]) -> float:
+        components = detail.get("components", {}) or {}
+        return sum((_component_number(components, key) or 0.0) * weight for key, weight in weights.items())
+
+    snapshot = []
+    for lane, weights in weights_by_lane.items():
+        left_score = lane_score(left_detail, weights)
+        right_score = lane_score(right_detail, weights)
+        title, rationale = lane_meta[lane]
+
+        if abs(left_score - right_score) < 0.5:
+            winner = "Even"
+            note = f"Both files land nearly level here, so budget and staff conviction should break the tie."
+        elif left_score > right_score:
+            winner = left_name
+            note = f"{left_name} {rationale} by {left_score - right_score:.1f} points."
+        else:
+            winner = right_name
+            note = f"{right_name} {rationale} by {right_score - left_score:.1f} points."
+
+        snapshot.append({"title": title, "winner": winner, "note": note})
+
+    return snapshot
+
+
 def build_roster_need_call(left_detail: Dict[str, Any], right_detail: Dict[str, Any]) -> Dict[str, str]:
     left_name = (left_detail.get("player") or {}).get("name", "Selected Player")
     right_name = (right_detail.get("player") or {}).get("name", "Comparison Player")
@@ -1161,7 +1220,7 @@ def compare_summary(left_detail: Dict[str, Any], right_detail: Dict[str, Any]) -
     return (
         f"{winner} grades better overall by {margin:.2f} points. "
         f"{left_name}'s strongest profile area is {left_strength}, while {right_name}'s strongest profile area is {right_strength}. "
-        "The decision should still be checked against role fit, price, and timeline."
+        "The decision should now be framed through role fit, price discipline, and timeline rather than raw score alone."
     )
 
 
@@ -1209,27 +1268,42 @@ def render_score_cards(detail: Dict[str, Any], components: Dict[str, Any]) -> No
     )
 
 
-def render_profile_cards(items: List[tuple[str, Any]]) -> None:
-    cards = []
-    for label, value in items:
-        display = "—" if value in (None, "", "—") else value
-        cards.append(
-            f"""
-            <div class="profile-card">
-                <div class="profile-label">{label}</div>
-                <div class="profile-value">{display}</div>
-            </div>
-            """
-        )
+def render_profile_cards(items: List[tuple[str, Any]], columns_per_row: int = 2) -> None:
+    safe_columns = max(1, columns_per_row)
+    for start in range(0, len(items), safe_columns):
+        row = items[start : start + safe_columns]
+        cols = st.columns(safe_columns, gap="small")
+        for col, (label, value) in zip(cols, row):
+            display = "—" if value in (None, "", "—") else value
+            with col:
+                st.markdown(
+                    f"""
+                    <div class="profile-card">
+                        <div class="profile-label">{label}</div>
+                        <div class="profile-value">{display}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
-    st.markdown(
-        f"""
-        <div class="profile-grid">
-            {''.join(cards)}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+
+def render_soft_card_grid(items: List[Dict[str, str]], columns_per_row: int = 2, top_margin: str = "0.85rem") -> None:
+    safe_columns = max(1, columns_per_row)
+    for start in range(0, len(items), safe_columns):
+        row = items[start : start + safe_columns]
+        cols = st.columns(safe_columns, gap="large")
+        for col, item in zip(cols, row):
+            with col:
+                st.markdown(
+                    f"""
+                    <div class="soft-card" style="margin-top:{top_margin};">
+                        <div class="mini-label">{item['title']}</div>
+                        <div class="board-name" style="font-size:1rem;">{item['winner']}</div>
+                        <div class="memo-text" style="margin-top:0.45rem;">{item['note']}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
 
 def render_detail(detail: Dict[str, Any]) -> None:
@@ -1428,21 +1502,13 @@ def render_compare_block(left_detail: Dict[str, Any], right_detail: Dict[str, An
         unsafe_allow_html=True,
     )
 
+    decision_snapshot = build_compare_decision_snapshot(left_detail, right_detail)
+    if decision_snapshot:
+        render_soft_card_grid(decision_snapshot, columns_per_row=2)
+
     verdicts = build_comparison_verdicts(left_detail, right_detail)
     if verdicts:
-        verdict_cols = st.columns(len(verdicts), gap="large")
-        for col, verdict in zip(verdict_cols, verdicts):
-            with col:
-                st.markdown(
-                    f"""
-                    <div class="soft-card" style="margin-top:0.85rem;">
-                        <div class="mini-label">{verdict['title']}</div>
-                        <div class="board-name" style="font-size:1rem;">{verdict['winner']}</div>
-                        <div class="memo-text" style="margin-top:0.45rem;">{verdict['note']}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+        render_soft_card_grid(verdicts, columns_per_row=2)
 
     comparison_rows = []
     for key, label in COMPONENT_LABELS.items():
@@ -1579,6 +1645,7 @@ def build_compare_export_markdown(left_detail: Dict[str, Any], right_detail: Dic
     right_player = right_detail.get("player", {}) or {}
     mode = left_detail.get("mode") or right_detail.get("mode") or "pro_wnba"
     roster_need_call = build_roster_need_call(left_detail, right_detail)
+    decision_snapshot = build_compare_decision_snapshot(left_detail, right_detail)
     verdicts = build_comparison_verdicts(left_detail, right_detail)
 
     left_name = left_player.get("name", "Selected Player")
@@ -1596,8 +1663,21 @@ def build_compare_export_markdown(left_detail: Dict[str, Any], right_detail: Dic
         f"## {roster_need_call['title']}",
         roster_need_call["note"],
         "",
-        "## Decision Verdicts",
+        "## Decision Snapshot",
     ]
+
+    if decision_snapshot:
+        lines.extend(
+            f"- {item['title']}: {item['winner']} - {item['note']}"
+            for item in decision_snapshot
+        )
+    else:
+        lines.append("- No decision snapshot available.")
+
+    lines.extend([
+        "",
+        "## Decision Verdicts",
+    ])
 
     if verdicts:
         lines.extend(

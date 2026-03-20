@@ -278,6 +278,52 @@ html, body, [data-testid="stAppViewContainer"] {
     overflow-wrap: anywhere;
 }
 
+.diagnostic-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.75rem;
+}
+
+.diagnostic-chip {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.28rem 0.55rem;
+    background: rgba(255,255,255,0.6);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.diagnostic-chip-label {
+    font-family: "IBM Plex Mono", monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.64rem;
+    color: var(--muted);
+}
+
+.diagnostic-chip-grade {
+    font-family: "Playfair Display", serif;
+    font-size: 0.95rem;
+    color: var(--ink);
+}
+
+.diagnostic-row-head {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-bottom: 0.35rem;
+}
+
+.diagnostic-row-grade {
+    font-family: "Playfair Display", serif;
+    font-size: 1.35rem;
+    line-height: 1;
+    color: var(--gold);
+    min-width: 1.2rem;
+}
+
 .rule {
     border-top: 1px solid var(--line);
     margin: 0.95rem 0 1rem 0;
@@ -817,6 +863,62 @@ def summarize_context(ctx: Dict[str, Any]) -> str:
         f"Team {ctx.get('team_id', '—')} operating in a {ctx.get('timeline', '—')} window, "
         f"with cap flexibility {ctx.get('cap_flexibility', '—')} and risk tolerance {ctx.get('risk_tolerance', '—')}."
     )
+
+
+def build_dossier_takeaways(detail: Dict[str, Any]) -> List[str]:
+    detail = normalize_detail_for_display(detail)
+    player = detail.get("player", {}) or {}
+    ctx = detail.get("ctx", {}) or {}
+    mode = detail.get("mode") or "pro_wnba"
+    components = detail.get("components", {}) or {}
+    component_scores = [(label, _component_number(components, key) or 0.0) for key, label in COMPONENT_LABELS.items()]
+    component_scores.sort(key=lambda item: item[1], reverse=True)
+    strongest_label, strongest_value = component_scores[0]
+
+    needs = ctx.get("needs_by_position", {}) or {}
+    pos = player.get("position", "—")
+    need_value = needs.get(pos)
+    need_line = (
+        f"{pos} is a live roster-need position at {need_value:.2f}, which supports the current recommendation."
+        if need_value is not None
+        else "Roster-need data is limited, so fit should be validated against live board priorities."
+    )
+
+    tension_points = detail.get("tension_points", []) or []
+    risk_line = tension_points[0] if tension_points else "No major tension points are currently flagged in this file."
+
+    overall_score = format_score(detail.get("overall_score"))
+    second_label, second_value = component_scores[1]
+
+    return [
+        f"Overall score: {overall_score}. Recommendation: {clean_action(detail.get('recommended_action'), mode)}.",
+        f"Top components: {strongest_label} {format_score(strongest_value)} and {second_label} {format_score(second_value)}.",
+        f"Roster / risk view: {need_line} Primary watch item: {risk_line}",
+    ]
+
+
+def render_diagnostic_strip(detail: Dict[str, Any]) -> None:
+    rows = compute_five_layer_diagnostic(detail)
+    short_labels = {
+        "Layer 1 — Scoring Profile": "Scoring",
+        "Layer 2 — Creation Profile": "Creation",
+        "Layer 3 — Defensive Translation": "Defense",
+        "Layer 4 — Availability / Stability": "Stability",
+        "Layer 5 — Value / Roster Fit": "Value / Fit",
+    }
+    st.markdown('<div class="section-kicker" style="margin-top:0.75rem;">Diagnostic Snapshot</div>', unsafe_allow_html=True)
+    cols = st.columns(len(rows), gap="small")
+    for col, row in zip(cols, rows):
+        with col:
+            st.markdown(
+                f"""
+                <div class="diagnostic-chip">
+                    <div class="diagnostic-chip-label">{short_labels.get(row['layer'], row['layer'])}</div>
+                    <div class="diagnostic-chip-grade">{row['grade']}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 def build_memo(detail: Dict[str, Any]) -> str:
@@ -1439,9 +1541,9 @@ def render_five_layer_diagnostic(detail: Dict[str, Any]) -> None:
         st.markdown(
             f"""
             <div class="soft-card" style="margin-bottom:0.75rem;">
-                <div class="board-head">
+                <div class="diagnostic-row-head">
+                    <div class="diagnostic-row-grade">{row['grade']}</div>
                     <div class="mini-label" style="margin-bottom:0;">{row['layer']}</div>
-                    <div class="board-tag">{row['grade']}</div>
                 </div>
                 <div class="memo-text" style="margin-top:0.45rem;">{row['note']}</div>
             </div>
@@ -1450,7 +1552,7 @@ def render_five_layer_diagnostic(detail: Dict[str, Any]) -> None:
         )
 
 
-def render_detail(detail: Dict[str, Any], show_diagnostic: bool = True) -> None:
+def render_detail(detail: Dict[str, Any], show_diagnostic: bool = True, show_heading: bool = True) -> None:
     detail = normalize_detail_for_display(detail)
     player = detail.get("player", {}) or {}
     ctx = detail.get("ctx", {}) or {}
@@ -1459,8 +1561,9 @@ def render_detail(detail: Dict[str, Any], show_diagnostic: bool = True) -> None:
     tension_points = detail.get("tension_points", []) or []
     mode = detail.get("mode") or "pro_wnba"
 
-    st.markdown('<div class="section-kicker">Selected File</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Evaluation Dossier</div>', unsafe_allow_html=True)
+    if show_heading:
+        st.markdown('<div class="section-kicker">Selected File</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">Evaluation Dossier</div>', unsafe_allow_html=True)
 
     st.markdown(
         f"""
@@ -1478,7 +1581,19 @@ def render_detail(detail: Dict[str, Any], show_diagnostic: bool = True) -> None:
                 </div>
                 <div class="board-tag {action_class(detail.get("recommended_action"))}">{clean_action(detail.get("recommended_action"), mode)}</div>
             </div>
-            <div class="rule"></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    render_diagnostic_strip(detail)
+    st.markdown('<div class="rule"></div>', unsafe_allow_html=True)
+
+    takeaway_items = "".join(f"<li>{item}</li>" for item in build_dossier_takeaways(detail))
+    st.markdown(
+        f"""
+        <div class="soft-card" style="margin-bottom:0.9rem;">
+            <div class="mini-label">Top Takeaways</div>
+            <ul class="subtle-list">{takeaway_items}</ul>
         </div>
         """,
         unsafe_allow_html=True,
@@ -2180,7 +2295,9 @@ def main() -> None:
             st.warning("A bearer token is required to load the briefing.")
             return
 
-    evaluate_tab, board_tab = st.tabs(["Create Evaluation", "Board & Dossiers"])
+    evaluate_tab, board_tab, dossier_tab, compare_tab = st.tabs(
+        ["Create Evaluation", "Board", "Player Dossier", "Compare"]
+    )
 
     with evaluate_tab:
         st.markdown('<div class="section-kicker">Prospect Intake</div>', unsafe_allow_html=True)
@@ -2301,87 +2418,122 @@ def main() -> None:
                 st.error(f"Unexpected error deleting evaluation: {e}")
 
     detail = None
-    compare_detail = None
-    player_name = "player"
-    selected_id = None
+    selected_id = st.session_state.get("selected_evaluation_id")
+    if evaluations:
+        existing_ids = {row["id"] for row in evaluations}
+        if selected_id not in existing_ids:
+            selected_id = evaluations[0]["id"]
+            st.session_state["selected_evaluation_id"] = selected_id
+    else:
+        selected_id = None
 
     with board_tab:
         render_summary_cards(evaluations)
         st.markdown(f"<div class='filter-note'>Showing {len(evaluations)} evaluation(s) after filters and sorting.</div>", unsafe_allow_html=True)
+        selected_id = render_decision_board(evaluations)
+        if selected_id:
+            st.caption("Open the `Player Dossier` tab for a full-screen file review, or use `Compare` for side-by-side analysis.")
 
-        left, right = st.columns([0.78, 1.52], gap="large")
-        with left:
-            selected_id = render_decision_board(evaluations)
+    if selected_id:
+        try:
+            detail = get_evaluation_detail(token, selected_id)
+        except httpx.HTTPStatusError as e:
+            st.error(f"API error loading detail: {e.response.status_code} {e.response.text}")
+        except Exception as e:
+            st.error(f"Unexpected error loading detail: {e}")
 
-        with right:
-            if not selected_id:
-                st.info("No evaluation selected.")
-            else:
-                try:
-                    detail = get_evaluation_detail(token, selected_id)
-                    render_detail(detail, show_diagnostic=False)
+    with dossier_tab:
+        st.markdown('<div class="section-kicker">Dossier Workspace</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">Player Dossier</div>', unsafe_allow_html=True)
 
-                    player_name = (detail.get("player") or {}).get("name", "player").replace(" ", "_")
+        if not evaluations:
+            st.info("No evaluation dossiers are available yet. Create a new evaluation or seed demo files first.")
+        else:
+            dossier_map = {
+                f"{(e.get('player') or {}).get('name', 'Player')} | {MODE_LABELS.get(e.get('mode') or 'pro_wnba', e.get('mode') or 'pro_wnba')} | {format_score(e.get('overall_score'))}": e["id"]
+                for e in evaluations
+            }
+            dossier_labels = list(dossier_map.keys())
+            current_label = next((label for label, value in dossier_map.items() if value == selected_id), dossier_labels[0])
+            control_left, control_mid, control_right = st.columns([1.8, 0.42, 0.42], gap="small")
+            with control_left:
+                st.markdown('<div class="section-kicker" style="margin-bottom:0.2rem;">Select Player</div>', unsafe_allow_html=True)
+                selected_label = st.selectbox(
+                    "Select player dossier",
+                    dossier_labels,
+                    index=dossier_labels.index(current_label),
+                    label_visibility="collapsed",
+                )
+            selected_id = dossier_map[selected_label]
+            st.session_state["selected_evaluation_id"] = selected_id
 
-                except httpx.HTTPStatusError as e:
-                    st.error(f"API error loading detail: {e.response.status_code} {e.response.text}")
-                except Exception as e:
-                    st.error(f"Unexpected error loading detail: {e}")
+            detail = get_evaluation_detail(token, selected_id)
+            player_name = (detail.get("player") or {}).get("name", "player").replace(" ", "_")
 
-    if detail:
-        st.markdown('<div class="section-kicker" style="margin-top:1rem;">Workflow Actions</div>', unsafe_allow_html=True)
-        st.markdown('<div class="section-title">Compare And Export</div>', unsafe_allow_html=True)
+            with control_mid:
+                export_md = build_export_markdown(detail)
+                st.download_button(
+                    "Markdown",
+                    data=export_md,
+                    file_name=f"{player_name}_waims_gm_dossier.md",
+                    mime="text/markdown",
+                    use_container_width=True,
+                )
+            with control_right:
+                if WORD_EXPORT_AVAILABLE:
+                    try:
+                        export_docx = build_export_docx_bytes(detail)
+                        st.download_button(
+                            "Word",
+                            data=export_docx,
+                            file_name=f"{player_name}_waims_gm_dossier.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            use_container_width=True,
+                        )
+                    except Exception as e:
+                        st.warning(f"Word export failed, but the rest of the app is still available. Details: {e}")
+                else:
+                    st.info("Word export is unavailable on this environment. Markdown export is still available.")
 
-        action_left, action_right = st.columns([1.25, 0.95], gap="large")
-        with action_left:
-            compare_options = [e for e in evaluations if e["id"] != selected_id]
-            if compare_options:
-                compare_map = {
-                    f"{(e.get('player') or {}).get('name', 'Player')} | {format_score(e.get('overall_score'))} | {MODE_LABELS.get(e.get('mode') or 'pro_wnba', e.get('mode') or 'pro_wnba')}": e["id"]
-                    for e in compare_options
-                }
-                selected_compare = st.selectbox("Compare against", ["None"] + list(compare_map.keys()))
-                if selected_compare != "None":
-                    compare_detail = get_evaluation_detail(token, compare_map[selected_compare])
-            else:
-                st.caption("Add one more evaluation to unlock compare mode and comparison export.")
+            render_detail(detail, show_diagnostic=True, show_heading=False)
 
-        with action_right:
-            export_md = build_export_markdown(detail)
-            st.download_button(
-                "Download dossier (.md)",
-                data=export_md,
-                file_name=f"{player_name}_waims_gm_dossier.md",
-                mime="text/markdown",
-            )
+    with compare_tab:
+        st.markdown('<div class="section-kicker">Comparison Workspace</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">Side-by-Side Compare</div>', unsafe_allow_html=True)
 
-            if WORD_EXPORT_AVAILABLE:
-                try:
-                    export_docx = build_export_docx_bytes(detail)
-                    st.download_button(
-                        "Download dossier (.docx)",
-                        data=export_docx,
-                        file_name=f"{player_name}_waims_gm_dossier.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    )
-                except Exception as e:
-                    st.warning(f"Word export failed, but the rest of the app is still available. Details: {e}")
-            else:
-                st.info("Word export is unavailable on this environment. Markdown export is still available.")
+        if len(evaluations) < 2:
+            st.info("Add or seed at least two evaluations to unlock compare mode.")
+        else:
+            compare_map = {
+                f"{(e.get('player') or {}).get('name', 'Player')} | {MODE_LABELS.get(e.get('mode') or 'pro_wnba', e.get('mode') or 'pro_wnba')} | {format_score(e.get('overall_score'))}": e["id"]
+                for e in evaluations
+            }
+            compare_labels = list(compare_map.keys())
+            primary_label = next((label for label, value in compare_map.items() if value == selected_id), compare_labels[0])
+            primary_choice = st.selectbox("Primary dossier", compare_labels, index=compare_labels.index(primary_label), key="compare_primary")
+            primary_id = compare_map[primary_choice]
+            st.session_state["selected_evaluation_id"] = primary_id
 
-        render_five_layer_diagnostic(detail)
+            comparison_candidates = [(label, value) for label, value in compare_map.items() if value != primary_id]
+            comparison_labels = [label for label, _ in comparison_candidates]
+            compare_choice = st.selectbox("Compare against", comparison_labels, key="compare_secondary")
+            compare_id = dict(comparison_candidates)[compare_choice]
 
-        if compare_detail:
-            render_compare_block(detail, compare_detail)
+            primary_detail = get_evaluation_detail(token, primary_id)
+            compare_detail = get_evaluation_detail(token, compare_id)
+
+            compare_export_md = build_compare_export_markdown(primary_detail, compare_detail)
             compare_name = ((compare_detail.get("player") or {}).get("name", "comparison")).replace(" ", "_")
-            compare_export_md = build_compare_export_markdown(detail, compare_detail)
+            primary_name = ((primary_detail.get("player") or {}).get("name", "player")).replace(" ", "_")
             st.download_button(
                 "Download comparison brief (.md)",
                 data=compare_export_md,
-                file_name=f"{player_name}_vs_{compare_name}_waims_gm_compare.md",
+                file_name=f"{primary_name}_vs_{compare_name}_waims_gm_compare.md",
                 mime="text/markdown",
-                key=f"compare_export_{selected_id}",
+                key=f"compare_export_{primary_id}",
             )
+
+            render_compare_block(primary_detail, compare_detail)
 
 
 if __name__ == "__main__":

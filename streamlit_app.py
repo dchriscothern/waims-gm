@@ -278,34 +278,27 @@ html, body, [data-testid="stAppViewContainer"] {
     overflow-wrap: anywhere;
 }
 
-.diagnostic-chip-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.45rem;
-    margin-top: 0.75rem;
+.diagnostic-mini-card {
+    border: 1px solid rgba(159,122,45,0.18);
+    border-radius: 14px;
+    padding: 0.5rem 0.65rem;
+    background: rgba(255,255,255,0.72);
+    min-width: 0;
 }
 
-.diagnostic-chip {
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 0.28rem 0.55rem;
-    background: rgba(255,255,255,0.6);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-}
-
-.diagnostic-chip-label {
+.diagnostic-mini-label {
     font-family: "IBM Plex Mono", monospace;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    font-size: 0.64rem;
+    font-size: 0.62rem;
     color: var(--muted);
+    margin-bottom: 0.18rem;
 }
 
-.diagnostic-chip-grade {
+.diagnostic-mini-grade {
     font-family: "Playfair Display", serif;
-    font-size: 0.95rem;
+    font-size: 1.1rem;
+    line-height: 1;
     color: var(--ink);
 }
 
@@ -550,6 +543,47 @@ MODE_LABELS = {
     "recruiting_only": "Recruiting Only",
 }
 
+DEFAULT_MODE = "cbb_d2_low_resource"
+
+MODE_PLAYBOOKS: Dict[str, Dict[str, str]] = {
+    "pro_wnba": {
+        "headline": "Pro / WNBA acquisition lens",
+        "primary_question": "Can this player solve a rotation problem without creating a value leak against pro-level cost and durability pressure?",
+        "weight_note": "Impact drives the file first, then availability and role fit.",
+        "create_note": "Use this mode when you care about immediate pro translation, contract pressure, and real rotation minutes.",
+        "board_note": "Board view favors playable impact and cleaner short-window dependability over speculative upside.",
+        "dossier_note": "Read the dossier as a front-office acquisition file with immediate rotation and cost discipline in mind.",
+        "compare_note": "Compare mode should answer which player solves the current rotation question with the cleaner value profile.",
+    },
+    "cbb_high_major": {
+        "headline": "High-major roster-building lens",
+        "primary_question": "Can this player help a high-major program win quickly while still justifying portal cost and role usage?",
+        "weight_note": "Impact and upside stay aggressive, with fit and value still important but not dominant.",
+        "create_note": "Use this mode for portal leads, top-end adds, and players who must hold up against high-major role pressure.",
+        "board_note": "Board view leans toward immediate game impact, usage scalability, and portal translation.",
+        "dossier_note": "Read the dossier as a high-major add file: immediate usefulness matters, but a ceiling signal still moves the recommendation.",
+        "compare_note": "Compare mode should tell you who is the better portal bet for your current high-major rotation and offense ecosystem.",
+    },
+    "cbb_d2_low_resource": {
+        "headline": "D2 / NAIA / JUCO roster-build lens",
+        "primary_question": "Can this player help us win soon without forcing our staff into a cost, risk, or roster-fit compromise?",
+        "weight_note": "Value, fit, and availability matter more here than pure upside chasing.",
+        "create_note": "Use this mode for D2, D3, NAIA, and Juco-style decisions where affordability, role clarity, and readiness matter.",
+        "board_note": "Board view favors ready, affordable players who solve a live roster need without introducing avoidable instability.",
+        "dossier_note": "Read the dossier as a small-staff roster file: the best target is often the one who helps now with the least operational drag.",
+        "compare_note": "Compare mode should answer who gives the cleaner immediate return for the staff and roster you actually have.",
+    },
+    "recruiting_only": {
+        "headline": "Long-horizon recruiting lens",
+        "primary_question": "Is this prospect worth betting on because the long-term upside and age-adjusted runway justify the uncertainty?",
+        "weight_note": "Upside and future value matter more than immediate impact or current minutes stability.",
+        "create_note": "Use this mode for high-school, prep, or long-range recruiting decisions where runway matters more than instant rotation help.",
+        "board_note": "Board view favors growth curve, positional need, and long-term upside more than near-term certainty.",
+        "dossier_note": "Read the dossier as a projection file. The recommendation should reflect future leverage, not just current readiness.",
+        "compare_note": "Compare mode should tell you which prospect is the better long-horizon bet for your program's future roster shape.",
+    },
+}
+
 ACTION_LABELS = {
     "pro_wnba": {"draft": "Draft", "sign": "Sign", "pass": "Pass"},
     "cbb_high_major": {"draft": "Priority Target", "sign": "Take/Add", "pass": "Pass"},
@@ -585,7 +619,26 @@ PRESETS: Dict[str, Dict[str, Dict[str, Any]]] = {
             "summary_note": "Reliable wing target who fits a low-maintenance rotation role.",
             "strengths": "Defends multiple positions\nReliable catch-and-shoot spacing\nStable role acceptance",
             "concerns": "Limited self-creation\nMay be capped as a secondary piece",
-        }
+        },
+        "Second Unit Pace Guard": {
+            "position": "G",
+            "age": 26,
+            "offense_rating": 75.0,
+            "defense_rating": 61.0,
+            "shooting_rating": 74.0,
+            "playmaking_rating": 77.0,
+            "rebounding_rating": 34.0,
+            "health_risk": 0.18,
+            "upside": 0.58,
+            "minutes_stability": 0.74,
+            "expected_cost_tier": 2,
+            "need_g": 0.72,
+            "need_f": 0.24,
+            "need_c": 0.16,
+            "summary_note": "Bench guard target who can stabilize second-unit offense without premium acquisition cost.",
+            "strengths": "Pick-and-roll command\nSecond-unit shot creation\nTempo control",
+            "concerns": "Size pressure on defense\nLess upside than younger guard bets",
+        },
     },
     "cbb_high_major": {
         "Portal Lead Guard": {
@@ -606,7 +659,26 @@ PRESETS: Dict[str, Dict[str, Dict[str, Any]]] = {
             "summary_note": "High-major portal guard with immediate usage and ball-screen value.",
             "strengths": "Creation\nDecision-making\nPull-up threat\nLate-clock offense",
             "concerns": "Defensive translation\nPrice sensitivity\nBall-dominant profile",
-        }
+        },
+        "Portal Two-Way Wing": {
+            "position": "F",
+            "age": 22,
+            "offense_rating": 76.0,
+            "defense_rating": 79.0,
+            "shooting_rating": 77.0,
+            "playmaking_rating": 61.0,
+            "rebounding_rating": 63.0,
+            "health_risk": 0.13,
+            "upside": 0.73,
+            "minutes_stability": 0.80,
+            "expected_cost_tier": 3,
+            "need_g": 0.35,
+            "need_f": 0.84,
+            "need_c": 0.22,
+            "summary_note": "Portal wing with high-major defensive portability and enough shooting to hold a real role.",
+            "strengths": "Positional defense\nCatch-and-shoot value\nRole flexibility",
+            "concerns": "May not carry primary creation\nPortal market could drive price",
+        },
     },
     "cbb_d2_low_resource": {
         "D2 Two-Way Wing": {
@@ -627,7 +699,26 @@ PRESETS: Dict[str, Dict[str, Dict[str, Any]]] = {
             "summary_note": "Affordable two-way wing who can help a smaller staff win quickly.",
             "strengths": "Role clarity\nDefensive versatility\nShooting floor\nStrong budget fit",
             "concerns": "Creation ceiling\nMay need usage protection",
-        }
+        },
+        "Ready Guard Value Add": {
+            "position": "G",
+            "age": 22,
+            "offense_rating": 73.0,
+            "defense_rating": 74.0,
+            "shooting_rating": 70.0,
+            "playmaking_rating": 72.0,
+            "rebounding_rating": 38.0,
+            "health_risk": 0.11,
+            "upside": 0.66,
+            "minutes_stability": 0.86,
+            "expected_cost_tier": 1,
+            "need_g": 0.86,
+            "need_f": 0.34,
+            "need_c": 0.20,
+            "summary_note": "Ready-made backcourt add who gives a smaller staff immediate competence and cheap minutes.",
+            "strengths": "Decision security\nRole readiness\nBudget-friendly fit",
+            "concerns": "Lower long-term ceiling\nDoes not solve frontcourt size",
+        },
     },
     "recruiting_only": {
         "High-Upside Combo Guard": {
@@ -648,7 +739,26 @@ PRESETS: Dict[str, Dict[str, Dict[str, Any]]] = {
             "summary_note": "Developmental guard with real long-term upside.",
             "strengths": "Shot-making\nHandle creativity\nGrowth curve",
             "concerns": "Physical maturity\nDecision stability\nDefensive readiness",
-        }
+        },
+        "Long Wing Upside Bet": {
+            "position": "F",
+            "age": 17,
+            "offense_rating": 67.0,
+            "defense_rating": 64.0,
+            "shooting_rating": 71.0,
+            "playmaking_rating": 56.0,
+            "rebounding_rating": 61.0,
+            "health_risk": 0.09,
+            "upside": 0.89,
+            "minutes_stability": 0.52,
+            "expected_cost_tier": 2,
+            "need_g": 0.28,
+            "need_f": 0.81,
+            "need_c": 0.26,
+            "summary_note": "Length-and-skill wing bet with long-term lineup versatility if the physical development comes.",
+            "strengths": "Frame upside\nProjectable jumper\nTwo-way runway",
+            "concerns": "Needs strength\nCurrent impact is limited",
+        },
     },
 }
 
@@ -858,6 +968,48 @@ def render_header() -> None:
     )
 
 
+def get_mode_playbook(mode: str) -> Dict[str, str]:
+    return MODE_PLAYBOOKS.get(mode or DEFAULT_MODE, MODE_PLAYBOOKS[DEFAULT_MODE])
+
+
+def render_mode_focus_banner(mode: str, surface: str, show_label: bool = True) -> None:
+    mode = mode or DEFAULT_MODE
+    playbook = get_mode_playbook(mode)
+    notes = {
+        "create": playbook["create_note"],
+        "board": playbook["board_note"],
+        "dossier": playbook["dossier_note"],
+        "compare": playbook["compare_note"],
+    }
+    surface_label = {
+        "create": "Mode Setup",
+        "board": "Mode Focus",
+        "dossier": "Dossier Lens",
+        "compare": "Compare Lens",
+    }
+    if show_label:
+        st.markdown(
+            f'<div class="section-kicker" style="margin-top:0.2rem;">{surface_label.get(surface, "Mode Focus")}</div>',
+            unsafe_allow_html=True,
+        )
+    st.markdown(
+        f"""
+        <div class="soft-card" style="margin-bottom:0.85rem;">
+            <div class="mini-label">{MODE_LABELS.get(mode, mode)}</div>
+            <div class="board-name" style="font-size:1.05rem;">{playbook['headline']}</div>
+            <div class="memo-text" style="margin-top:0.45rem;">
+                <strong>Primary question:</strong> {playbook['primary_question']}
+                <br/>
+                <strong>Weighting bias:</strong> {playbook['weight_note']}
+                <br/>
+                {notes.get(surface, playbook['dossier_note'])}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def summarize_context(ctx: Dict[str, Any]) -> str:
     return (
         f"Team {ctx.get('team_id', '—')} operating in a {ctx.get('timeline', '—')} window, "
@@ -889,10 +1041,12 @@ def build_dossier_takeaways(detail: Dict[str, Any]) -> List[str]:
 
     overall_score = format_score(detail.get("overall_score"))
     second_label, second_value = component_scores[1]
+    playbook = get_mode_playbook(mode)
 
     return [
         f"Overall score: {overall_score}. Recommendation: {clean_action(detail.get('recommended_action'), mode)}.",
         f"Top components: {strongest_label} {format_score(strongest_value)} and {second_label} {format_score(second_value)}.",
+        f"Mode lens: {playbook['weight_note']}",
         f"Roster / risk view: {need_line} Primary watch item: {risk_line}",
     ]
 
@@ -906,15 +1060,18 @@ def render_diagnostic_strip(detail: Dict[str, Any]) -> None:
         "Layer 4 — Availability / Stability": "Stability",
         "Layer 5 — Value / Roster Fit": "Value / Fit",
     }
-    st.markdown('<div class="section-kicker" style="margin-top:0.75rem;">Diagnostic Snapshot</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-kicker" style="margin-top:0.55rem; margin-bottom:0.3rem;">Diagnostic Snapshot</div>',
+        unsafe_allow_html=True,
+    )
     cols = st.columns(len(rows), gap="small")
     for col, row in zip(cols, rows):
         with col:
             st.markdown(
                 f"""
-                <div class="diagnostic-chip">
-                    <div class="diagnostic-chip-label">{short_labels.get(row['layer'], row['layer'])}</div>
-                    <div class="diagnostic-chip-grade">{row['grade']}</div>
+                <div class="diagnostic-mini-card">
+                    <div class="diagnostic-mini-label">{short_labels.get(row['layer'], row['layer'])}</div>
+                    <div class="diagnostic-mini-grade">{row['grade']}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1141,10 +1298,10 @@ def build_decision_lens(detail: Dict[str, Any]) -> str:
         "value": "value-to-cost profile",
     }
     mode_lenses = {
-        "pro_wnba": "win-now acquisition lens",
-        "cbb_high_major": "high-major translation lens",
-        "cbb_d2_low_resource": "resource-efficient roster lens",
-        "recruiting_only": "long-horizon recruiting lens",
+        "pro_wnba": "win-now acquisition",
+        "cbb_high_major": "high-major translation",
+        "cbb_d2_low_resource": "small-staff roster",
+        "recruiting_only": "long-horizon recruiting",
     }
 
     ranked = [
@@ -2236,6 +2393,14 @@ def main() -> None:
 
     if "load_requested" not in st.session_state:
         st.session_state["load_requested"] = False
+    if "preferred_mode" not in st.session_state:
+        st.session_state["preferred_mode"] = DEFAULT_MODE
+    if "preferred_mode_selector" not in st.session_state:
+        st.session_state["preferred_mode_selector"] = st.session_state["preferred_mode"]
+    if "product_mode" not in st.session_state:
+        st.session_state["product_mode"] = st.session_state["preferred_mode"]
+
+    preferred_mode = st.session_state["preferred_mode"]
 
     with st.sidebar:
         st.markdown("## Runtime")
@@ -2261,8 +2426,32 @@ def main() -> None:
         else:
             st.caption("Interview-safe local mode: seeded demo dossiers run fully in memory.")
 
+        st.markdown("## Mode Focus")
+        preferred_mode = st.selectbox(
+            "Session mode",
+            list(MODE_LABELS.keys()),
+            index=list(MODE_LABELS.keys()).index(preferred_mode),
+            format_func=lambda x: MODE_LABELS[x],
+            key="preferred_mode_selector",
+        )
+        if preferred_mode != st.session_state["preferred_mode"]:
+            st.session_state["preferred_mode"] = preferred_mode
+            st.session_state["product_mode"] = preferred_mode
+        preferred_playbook = get_mode_playbook(preferred_mode)
+        st.caption(preferred_playbook["headline"])
+        st.caption(preferred_playbook["weight_note"])
+
         st.markdown("## Filters")
-        mode_filter = st.selectbox("Mode", ["All"] + list(MODE_LABELS.keys()), format_func=lambda x: "All" if x == "All" else MODE_LABELS[x])
+        mode_scope = st.selectbox(
+            "Board scope",
+            ["Focused", "All"] + list(MODE_LABELS.keys()),
+            index=0,
+            format_func=lambda x: (
+                f"Focused: {MODE_LABELS[preferred_mode]}"
+                if x == "Focused"
+                else ("All modes" if x == "All" else MODE_LABELS[x])
+            ),
+        )
         action_filter = st.selectbox("Recommendation", ["All", "draft", "sign", "pass"], index=0)
         sort_by = st.selectbox("Sort by", ["Created", "Score", "Recommendation", "Mode", "Player Name"], index=0)
         descending = st.checkbox("Descending", value=True)
@@ -2295,6 +2484,8 @@ def main() -> None:
             st.warning("A bearer token is required to load the briefing.")
             return
 
+    mode_filter = preferred_mode if mode_scope == "Focused" else mode_scope
+
     evaluate_tab, board_tab, dossier_tab, compare_tab = st.tabs(
         ["Create Evaluation", "Board", "Player Dossier", "Compare"]
     )
@@ -2311,10 +2502,24 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
-        selected_mode = st.selectbox("Product Mode", list(MODE_LABELS.keys()), format_func=lambda x: MODE_LABELS[x], key="product_mode")
+        if st.session_state.get("product_mode") != preferred_mode:
+            st.session_state["product_mode"] = preferred_mode
+        selected_mode = st.selectbox(
+            "Product Mode",
+            list(MODE_LABELS.keys()),
+            index=list(MODE_LABELS.keys()).index(preferred_mode),
+            format_func=lambda x: MODE_LABELS[x],
+            key="product_mode",
+        )
+        if selected_mode != st.session_state["preferred_mode"]:
+            st.session_state["preferred_mode"] = selected_mode
+            st.session_state["preferred_mode_selector"] = selected_mode
+        preferred_mode = selected_mode
         mode_presets = PRESETS.get(selected_mode, {})
+        render_mode_focus_banner(selected_mode, "create", show_label=False)
         preset_name = st.selectbox("Preset", ["Custom"] + list(mode_presets.keys()), index=0, key="preset_name")
         preset = mode_presets.get(preset_name, {})
+        st.caption(f"Using {MODE_LABELS.get(selected_mode, selected_mode)} presets and recommendation language for this file.")
 
         with st.form("main_intake_form"):
             st.markdown("**Player identity**")
@@ -2428,8 +2633,15 @@ def main() -> None:
         selected_id = None
 
     with board_tab:
+        render_mode_focus_banner(preferred_mode, "board")
         render_summary_cards(evaluations)
         st.markdown(f"<div class='filter-note'>Showing {len(evaluations)} evaluation(s) after filters and sorting.</div>", unsafe_allow_html=True)
+        if mode_scope == "Focused":
+            st.caption(f"Board is focused on {MODE_LABELS.get(preferred_mode, preferred_mode)} for this session.")
+        elif mode_scope == "All":
+            st.caption(f"Showing all modes. Session default remains {MODE_LABELS.get(preferred_mode, preferred_mode)}.")
+        else:
+            st.caption(f"Board is explicitly filtered to {MODE_LABELS.get(mode_scope, mode_scope)}.")
         selected_id = render_decision_board(evaluations)
         if selected_id:
             st.caption("Open the `Player Dossier` tab for a full-screen file review, or use `Compare` for side-by-side analysis.")
@@ -2468,6 +2680,7 @@ def main() -> None:
             st.session_state["selected_evaluation_id"] = selected_id
 
             detail = get_evaluation_detail(token, selected_id)
+            render_mode_focus_banner(detail.get("mode") or preferred_mode, "dossier", show_label=False)
             player_name = (detail.get("player") or {}).get("name", "player").replace(" ", "_")
 
             with control_mid:
@@ -2521,6 +2734,9 @@ def main() -> None:
 
             primary_detail = get_evaluation_detail(token, primary_id)
             compare_detail = get_evaluation_detail(token, compare_id)
+            render_mode_focus_banner(primary_detail.get("mode") or preferred_mode, "compare", show_label=False)
+            if (primary_detail.get("mode") or "") != (compare_detail.get("mode") or ""):
+                st.info("These dossiers come from different product modes. Use the comparison directionally rather than as a pure like-for-like grade.")
 
             compare_export_md = build_compare_export_markdown(primary_detail, compare_detail)
             compare_name = ((compare_detail.get("player") or {}).get("name", "comparison")).replace(" ", "_")

@@ -28,7 +28,7 @@ Before the demo:
 
 ## Recommended Story
 
-Use the app as if a lower-resource basketball staff is trying to decide who should move to the top of the board.
+Use the app as if a small-staff college basketball program is trying to decide who should move to the top of the board.
 
 Suggested frame:
 

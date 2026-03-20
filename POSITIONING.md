@@ -30,7 +30,7 @@ The goal is not abstract analytics. The goal is a usable staff artifact for meet
 
 ## Strongest Commercial Wedge
 
-The strongest near-term wedge is lower-resource college basketball:
+The strongest near-term wedge is small-staff college basketball:
 
 - NCAA D2
 - NAIA
@@ -72,4 +72,4 @@ WAIMS-GM could become a WAIMS module later when:
 
 - For coaches: "WAIMS-GM helps your staff move from scattered notes to a clear, meeting-ready player decision with context, tradeoffs, and a usable dossier."
 - For GMs: "WAIMS-GM is not a black-box AI GM; it is a structured basketball decision-support workflow for ranking, comparing, and defending acquisition decisions."
-- For investors: "WAIMS Python is the platform layer, but WAIMS-GM is the wedge product: a focused, sellable basketball application with a clear initial market in lower-resource college programs."
+- For investors: "WAIMS Python is the platform layer, but WAIMS-GM is the wedge product: a focused, sellable basketball application with a clear initial market in small-staff college programs."

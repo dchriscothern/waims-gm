@@ -1,4 +1,4 @@
-﻿import unittest
+import unittest
 
 from streamlit_app import (
     build_compare_decision_snapshot,
@@ -25,7 +25,7 @@ class ReportingTests(unittest.TestCase):
 
         lens = build_decision_lens(detail)
 
-        self.assertIn("resource-efficient roster lens", lens)
+        self.assertIn("small-staff roster lens", lens)
         self.assertIn("current roster fit", lens)
         self.assertIn("immediate impact", lens)
         self.assertIn("Fit Add", lens)

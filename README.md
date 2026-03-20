@@ -11,7 +11,7 @@ WAIMS-GM is designed as one shared platform that can support multiple basketball
 - `cbb_d2_low_resource`
 - `recruiting_only`
 
-The strongest near-term product wedge is lower-resource college basketball, especially D2, NAIA, JUCO, and similarly small-staff environments where explainable roster, portal, and recruiting support is valuable.
+The strongest near-term product wedge is small-staff college basketball, especially D2, NAIA, JUCO, and similarly lean environments where explainable roster, portal, and recruiting support is valuable.
 
 ## Live Code Map
 

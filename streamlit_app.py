@@ -2054,9 +2054,9 @@ def main() -> None:
         st.warning("A bearer token is required to load the briefing.")
         return
 
-    intake_col, board_col = st.columns([0.95, 1.7], gap="large")
+    evaluate_tab, board_tab = st.tabs(["Create Evaluation", "Board & Dossiers"])
 
-    with intake_col:
+    with evaluate_tab:
         st.markdown('<div class="section-kicker">Prospect Intake</div>', unsafe_allow_html=True)
         st.markdown('<div class="section-title">Create New Evaluation</div>', unsafe_allow_html=True)
         st.markdown(
@@ -2179,7 +2179,7 @@ def main() -> None:
     player_name = "player"
     selected_id = None
 
-    with board_col:
+    with board_tab:
         render_summary_cards(evaluations)
         st.markdown(f"<div class='filter-note'>Showing {len(evaluations)} evaluation(s) after filters and sorting.</div>", unsafe_allow_html=True)
 
@@ -2196,39 +2196,6 @@ def main() -> None:
                     render_detail(detail, show_diagnostic=False)
 
                     player_name = (detail.get("player") or {}).get("name", "player").replace(" ", "_")
-                    export_md = build_export_markdown(detail)
-                    st.download_button(
-                        "Download dossier (.md)",
-                        data=export_md,
-                        file_name=f"{player_name}_waims_gm_dossier.md",
-                        mime="text/markdown",
-                    )
-
-                    if WORD_EXPORT_AVAILABLE:
-                        try:
-                            export_docx = build_export_docx_bytes(detail)
-                            st.download_button(
-                                "Download dossier (.docx)",
-                                data=export_docx,
-                                file_name=f"{player_name}_waims_gm_dossier.docx",
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            )
-                        except Exception as e:
-                            st.warning(f"Word export failed, but the rest of the app is still available. Details: {e}")
-                    else:
-                        st.info("Word export is unavailable on this environment. Markdown export is still available.")
-
-                    compare_options = [e for e in evaluations if e["id"] != selected_id]
-                    if compare_options:
-                        compare_map = {
-                            f"{(e.get('player') or {}).get('name', 'Player')} | {format_score(e.get('overall_score'))} | {MODE_LABELS.get(e.get('mode') or 'pro_wnba', e.get('mode') or 'pro_wnba')}": e["id"]
-                            for e in compare_options
-                        }
-                        selected_compare = st.selectbox("Compare against", ["None"] + list(compare_map.keys()))
-                        if selected_compare != "None":
-                            compare_detail = get_evaluation_detail(token, compare_map[selected_compare])
-                    else:
-                        st.caption("Add one more evaluation to unlock compare mode and comparison export.")
 
                 except httpx.HTTPStatusError as e:
                     st.error(f"API error loading detail: {e.response.status_code} {e.response.text}")
@@ -2236,6 +2203,46 @@ def main() -> None:
                     st.error(f"Unexpected error loading detail: {e}")
 
     if detail:
+        st.markdown('<div class="section-kicker" style="margin-top:1rem;">Workflow Actions</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">Compare And Export</div>', unsafe_allow_html=True)
+
+        action_left, action_right = st.columns([1.25, 0.95], gap="large")
+        with action_left:
+            compare_options = [e for e in evaluations if e["id"] != selected_id]
+            if compare_options:
+                compare_map = {
+                    f"{(e.get('player') or {}).get('name', 'Player')} | {format_score(e.get('overall_score'))} | {MODE_LABELS.get(e.get('mode') or 'pro_wnba', e.get('mode') or 'pro_wnba')}": e["id"]
+                    for e in compare_options
+                }
+                selected_compare = st.selectbox("Compare against", ["None"] + list(compare_map.keys()))
+                if selected_compare != "None":
+                    compare_detail = get_evaluation_detail(token, compare_map[selected_compare])
+            else:
+                st.caption("Add one more evaluation to unlock compare mode and comparison export.")
+
+        with action_right:
+            export_md = build_export_markdown(detail)
+            st.download_button(
+                "Download dossier (.md)",
+                data=export_md,
+                file_name=f"{player_name}_waims_gm_dossier.md",
+                mime="text/markdown",
+            )
+
+            if WORD_EXPORT_AVAILABLE:
+                try:
+                    export_docx = build_export_docx_bytes(detail)
+                    st.download_button(
+                        "Download dossier (.docx)",
+                        data=export_docx,
+                        file_name=f"{player_name}_waims_gm_dossier.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    )
+                except Exception as e:
+                    st.warning(f"Word export failed, but the rest of the app is still available. Details: {e}")
+            else:
+                st.info("Word export is unavailable on this environment. Markdown export is still available.")
+
         render_five_layer_diagnostic(detail)
 
         if compare_detail:

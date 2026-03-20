@@ -784,12 +784,28 @@ def render_summary_cards(evaluations: List[Dict[str, Any]]) -> None:
         )
 
 
+def render_empty_board_state() -> None:
+    st.markdown(
+        """
+        <div class="soft-card" style="margin-top:0.85rem;">
+            <div class="mini-label">Board Status</div>
+            <div class="board-name" style="font-size:1.05rem;">No saved evaluations match the current view.</div>
+            <div class="memo-text" style="margin-top:0.45rem;">
+                Start by creating a new evaluation on the left, clear the active filters, or seed repeatable demo files with
+                <code>scripts/seed_demo_data.py</code>.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_decision_board(evaluations: List[Dict[str, Any]]) -> Optional[str]:
     st.markdown('<div class="section-kicker">Priority Queue</div>', unsafe_allow_html=True)
     st.markdown('<div class="section-title">Recent Evaluation Board</div>', unsafe_allow_html=True)
 
     if not evaluations:
-        st.info("No saved evaluations match the current filters.")
+        render_empty_board_state()
         return None
 
     existing_ids = {row["id"] for row in evaluations}
@@ -2030,11 +2046,12 @@ def main() -> None:
         st.session_state["load_requested"] = True
 
     if not token and not st.session_state["load_requested"]:
-        st.info("Paste a token in the sidebar and click 'Load briefing'.")
+        st.info("Paste a sandbox bearer token in the sidebar, click 'Load briefing', and the board will populate from Supabase.")
+        st.caption("If you want a fast demo board, run scripts\\seed_demo_data.py first.")
         return
 
     if not token:
-        st.warning("Token required.")
+        st.warning("A bearer token is required to load the briefing.")
         return
 
     intake_col, board_col = st.columns([0.95, 1.7], gap="large")
@@ -2210,6 +2227,8 @@ def main() -> None:
                         selected_compare = st.selectbox("Compare against", ["None"] + list(compare_map.keys()))
                         if selected_compare != "None":
                             compare_detail = get_evaluation_detail(token, compare_map[selected_compare])
+                    else:
+                        st.caption("Add one more evaluation to unlock compare mode and comparison export.")
 
                 except httpx.HTTPStatusError as e:
                     st.error(f"API error loading detail: {e.response.status_code} {e.response.text}")

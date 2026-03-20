@@ -18,9 +18,13 @@ Before the demo:
 1. Run the FastAPI backend locally.
 2. Run the Streamlit app locally.
 3. Confirm the UI shows the `Sandbox` badge.
-4. Generate a fresh sandbox bearer token with `scripts/get_token.py`.
-5. Paste the token into the sidebar and click `Load briefing`.
-6. Make sure at least two evaluations exist for compare mode.
+4. Optionally preview the demo file set with `scripts/seed_demo_data.py --list`.
+5. If you want to confirm the run before writing, use `scripts/seed_demo_data.py --dry-run`.
+6. Seed canonical demo players with `scripts/seed_demo_data.py`.
+   For a tighter demo, you can seed only one file with `scripts/seed_demo_data.py --only demo_high_major_portal_guard`.
+7. Generate a fresh sandbox bearer token with `scripts/get_token.py`.
+8. Paste the token into the sidebar and click `Load briefing`.
+9. Confirm at least two demo evaluations are present for compare mode.
 
 ## Recommended Story
 

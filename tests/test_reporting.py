@@ -1,6 +1,7 @@
 ﻿import unittest
 
 from streamlit_app import (
+    build_compare_decision_snapshot,
     build_compare_export_markdown,
     build_comparison_verdicts,
     build_decision_lens,
@@ -203,6 +204,72 @@ class ReportingTests(unittest.TestCase):
         self.assertIn("- Summary Note: No summary note.", markdown)
         self.assertIn("- No strengths entered.", markdown)
         self.assertIn("- No concerns entered.", markdown)
+
+    def test_build_compare_decision_snapshot_surfaces_three_decision_lanes(self):
+        left = {
+            "mode": "cbb_d2_low_resource",
+            "player": {"name": "Need Guard", "position": "G"},
+            "components": {
+                "fit": 77.0,
+                "impact": 68.0,
+                "upside": 66.0,
+                "availability": 79.0,
+                "value": 81.0,
+            },
+        }
+        right = {
+            "mode": "cbb_d2_low_resource",
+            "player": {"name": "Upside Wing", "position": "F"},
+            "components": {
+                "fit": 73.0,
+                "impact": 66.0,
+                "upside": 84.0,
+                "availability": 69.0,
+                "value": 71.0,
+            },
+        }
+
+        snapshot = {item["title"]: item for item in build_compare_decision_snapshot(left, right)}
+
+        self.assertEqual(len(snapshot), 3)
+        self.assertEqual(snapshot["Best current rotation answer"]["winner"], "Need Guard")
+        self.assertEqual(snapshot["Best long-term asset bet"]["winner"], "Upside Wing")
+        self.assertEqual(snapshot["Best value decision"]["winner"], "Need Guard")
+
+    def test_build_compare_export_markdown_includes_decision_snapshot(self):
+        left = {
+            "mode": "recruiting_only",
+            "player": {"name": "Younger Wing", "position": "F", "age": 18},
+            "overall_score": 75.6,
+            "recommended_action": "draft",
+            "components": {
+                "fit": 72.0,
+                "impact": 60.0,
+                "upside": 92.0,
+                "availability": 57.0,
+                "value": 73.0,
+            },
+        }
+        right = {
+            "mode": "recruiting_only",
+            "player": {"name": "Safer Wing", "position": "F", "age": 21},
+            "overall_score": 73.1,
+            "recommended_action": "sign",
+            "components": {
+                "fit": 77.0,
+                "impact": 66.0,
+                "upside": 81.0,
+                "availability": 74.0,
+                "value": 69.0,
+            },
+        }
+
+        markdown = build_compare_export_markdown(left, right)
+
+        self.assertIn("## Decision Snapshot", markdown)
+        self.assertIn("Best current rotation answer", markdown)
+        self.assertIn("Best long-term asset bet", markdown)
+        self.assertIn("Best value decision", markdown)
 
 
 if __name__ == "__main__":

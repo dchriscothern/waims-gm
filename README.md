@@ -184,7 +184,39 @@ C:\GitHub\waims-gm\.venv\Scripts\python.exe -m pytest -q
 Useful repo assets for demos and environment setup:
 
 - demo walkthrough: [DEMO_SCRIPT.md](C:/GitHub/waims-gm/DEMO_SCRIPT.md)
+- product positioning note: [POSITIONING.md](C:/GitHub/waims-gm/POSITIONING.md)
 - Supabase schema and RLS setup: [supabase/waims_gm_schema.sql](C:/GitHub/waims-gm/supabase/waims_gm_schema.sql)
+- demo data seeding script: [scripts/seed_demo_data.py](C:/GitHub/waims-gm/scripts/seed_demo_data.py)
+
+Seed the sandbox with repeatable demo players using:
+
+```powershell
+C:\GitHub\waims-gm\.venv\Scripts\python.exe scripts\seed_demo_data.py
+```
+
+Preview the demo file set without authenticating:
+
+```powershell
+C:\GitHub\waims-gm\.venv\Scripts\python.exe scripts\seed_demo_data.py --list
+```
+
+Preview what a seed run would do without writing any records:
+
+```powershell
+C:\GitHub\waims-gm\.venv\Scripts\python.exe scripts\seed_demo_data.py --dry-run
+```
+
+Seed only one targeted demo file by canonical ID or player name:
+
+```powershell
+C:\GitHub\waims-gm\.venv\Scripts\python.exe scripts\seed_demo_data.py --only demo_high_major_portal_guard
+```
+
+To replace existing demo rows with the latest seeded set:
+
+```powershell
+C:\GitHub\waims-gm\.venv\Scripts\python.exe scripts\seed_demo_data.py --replace
+```
 
 ## Preflight Checklist
 

@@ -119,6 +119,39 @@ python -m venv .venv
 Copy-Item .env.sandbox.example .env
 ```
 
+### Interview-Safe Demo Mode
+
+WAIMS-GM now supports a local no-auth demo mode for interviews and portfolio walkthroughs.
+
+When `WAIMS_DEMO_MODE=1`:
+
+- no Supabase token is required
+- no FastAPI backend is required
+- canonical demo dossiers load directly inside Streamlit
+- create, compare, delete, and export flows still work in local session state
+
+Fastest launch path:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\demo_bootstrap.ps1
+```
+
+This opens Streamlit in local interview mode.
+
+### Full Stack Local Demo
+
+If you want the full sandbox stack instead of local demo mode:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\demo_bootstrap.ps1 -FullStack
+```
+
+To start full stack and reseed canonical demo data:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\demo_bootstrap.ps1 -FullStack -SeedDemoData
+```
+
 Then fill in the Supabase values in `.env`.
 
 ### Start the backend
@@ -185,8 +218,10 @@ Useful repo assets for demos and environment setup:
 
 - demo walkthrough: [DEMO_SCRIPT.md](C:/GitHub/waims-gm/DEMO_SCRIPT.md)
 - product positioning note: [POSITIONING.md](C:/GitHub/waims-gm/POSITIONING.md)
+- architecture note: [docs/ARCHITECTURE.md](C:/GitHub/waims-gm/docs/ARCHITECTURE.md)
 - Supabase schema and RLS setup: [supabase/waims_gm_schema.sql](C:/GitHub/waims-gm/supabase/waims_gm_schema.sql)
 - demo data seeding script: [scripts/seed_demo_data.py](C:/GitHub/waims-gm/scripts/seed_demo_data.py)
+- demo bootstrap script: [scripts/demo_bootstrap.ps1](C:/GitHub/waims-gm/scripts/demo_bootstrap.ps1)
 
 Seed the sandbox with repeatable demo players using:
 
@@ -248,6 +283,24 @@ Recommended operator checklist before deploy:
 4. Run the test suite.
 5. Verify the Streamlit UI shows the correct environment badge.
 6. Verify sandbox and live point at different Supabase projects.
+
+## Interview And Portfolio Prep
+
+Best interview path:
+
+1. Use local interview mode via `scripts\demo_bootstrap.ps1`.
+2. Demo `Board & Dossiers`.
+3. Show one dossier, then compare mode, then export.
+4. Explain the deterministic scoring core and the sandbox/live split.
+5. Use [POSITIONING.md](C:/GitHub/waims-gm/POSITIONING.md) for the product story.
+
+Recommended screenshot set:
+
+- board tab with multiple seeded dossiers
+- one dossier with recommendation, score cards, and decision lens
+- compare section with decision snapshot and verdict cards
+- export workflow section
+- sidebar showing sandbox or local demo mode
 
 ## Live Deployment Target
 

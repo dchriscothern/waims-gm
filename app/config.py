@@ -18,6 +18,7 @@ IS_LIVE_ENV = WAIMS_ENV == "live"
 WAIMS_ENV_LABEL = os.getenv("WAIMS_ENV_LABEL", "Live" if IS_LIVE_ENV else "Sandbox").strip() or (
     "Live" if IS_LIVE_ENV else "Sandbox"
 )
+WAIMS_DEMO_MODE = os.getenv("WAIMS_DEMO_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
 API_HOSTPORT = os.getenv("API_HOSTPORT", "").strip()
 API_SCHEME = os.getenv("API_SCHEME", "http").strip() or "http"
 API_BASE_URL = os.getenv("API_BASE_URL", "").strip().rstrip("/")
@@ -60,5 +61,7 @@ def validate_runtime_settings() -> Dict[str, List[str]]:
         warnings.append("WAIMS_ENV is sandbox but WAIMS_ENV_LABEL still says live.")
     if not IS_LIVE_ENV and ("127.0.0.1" not in api_lower and "localhost" not in api_lower):
         warnings.append("Sandbox environment is using a non-local API_BASE_URL.")
+    if WAIMS_DEMO_MODE and IS_LIVE_ENV:
+        errors.append("WAIMS_DEMO_MODE cannot be enabled in a live environment.")
 
     return {"errors": errors, "warnings": warnings}

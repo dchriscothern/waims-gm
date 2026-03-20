@@ -1,13 +1,15 @@
 ﻿from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 import httpx
 import streamlit as st
-from app.config import API_BASE_URL, IS_LIVE_ENV, WAIMS_ENV_LABEL
+from app.config import API_BASE_URL, IS_LIVE_ENV, WAIMS_DEMO_MODE, WAIMS_ENV_LABEL
 from waims_gm.domain import Player, TeamContext
+from waims_gm.demo_data import demo_payloads
 from waims_gm.services import evaluate_single_player
 
 try:
@@ -613,7 +615,87 @@ def api_headers(token: str) -> Dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _local_score_detail_from_payload(
+    payload: Dict[str, Any],
+    evaluation_id: Optional[str] = None,
+    created_at: Optional[str] = None,
+) -> Dict[str, Any]:
+    player_dict = dict(payload.get("player", {}) or {})
+    ctx_dict = dict(payload.get("ctx", {}) or {})
+    mode = payload.get("mode") or "pro_wnba"
+    ctx_with_meta = ctx_dict | {"gm_id": "demo-local", "mode": mode}
+
+    player = Player(**player_dict)
+    ctx = TeamContext(**ctx_with_meta)
+    scorecard = evaluate_single_player(player, ctx)
+
+    return {
+        "id": evaluation_id or f"demo-{uuid4().hex[:8]}",
+        "gm_id": "demo-local",
+        "team_id": ctx_dict.get("team_id"),
+        "overall_score": scorecard.overall_score,
+        "components": scorecard.components,
+        "assumptions": scorecard.assumptions,
+        "tension_points": scorecard.tension_points,
+        "recommended_action": scorecard.recommended_action,
+        "player": player_dict,
+        "ctx": ctx_dict,
+        "created_at": created_at or _now_iso(),
+        "summary_note": payload.get("summary_note"),
+        "strengths": payload.get("strengths"),
+        "concerns": payload.get("concerns"),
+        "mode": mode,
+        "display_name": payload.get("display_name"),
+    }
+
+
+def _default_demo_details() -> List[Dict[str, Any]]:
+    details: List[Dict[str, Any]] = []
+    for index, payload in enumerate(demo_payloads()):
+        details.append(
+            _local_score_detail_from_payload(
+                payload,
+                evaluation_id=f"demo-local-{index + 1}",
+                created_at=_now_iso(),
+            )
+        )
+    return details
+
+
+def ensure_local_demo_state() -> None:
+    if "local_demo_details" not in st.session_state:
+        st.session_state["local_demo_details"] = _default_demo_details()
+
+
+def _local_demo_details() -> List[Dict[str, Any]]:
+    ensure_local_demo_state()
+    return list(st.session_state["local_demo_details"])
+
+
+def _save_local_demo_details(details: List[Dict[str, Any]]) -> None:
+    st.session_state["local_demo_details"] = details
+
+
 def get_evaluations(token: str) -> List[Dict[str, Any]]:
+    if WAIMS_DEMO_MODE:
+        return [
+            {
+                "id": row["id"],
+                "gm_id": row["gm_id"],
+                "team_id": row.get("team_id"),
+                "overall_score": row["overall_score"],
+                "recommended_action": row["recommended_action"],
+                "created_at": row.get("created_at"),
+                "player": row.get("player", {}),
+                "summary_note": row.get("summary_note"),
+                "mode": row.get("mode"),
+            }
+            for row in _local_demo_details()
+        ]
     with httpx.Client(timeout=20) as client:
         r = client.get(f"{API_BASE_URL}/evaluations", headers=api_headers(token))
         r.raise_for_status()
@@ -621,6 +703,11 @@ def get_evaluations(token: str) -> List[Dict[str, Any]]:
 
 
 def get_evaluation_detail(token: str, evaluation_id: str) -> Dict[str, Any]:
+    if WAIMS_DEMO_MODE:
+        for row in _local_demo_details():
+            if row["id"] == evaluation_id:
+                return row
+        raise KeyError(f"No local demo evaluation found for id {evaluation_id}")
     with httpx.Client(timeout=20) as client:
         r = client.get(
             f"{API_BASE_URL}/evaluations/{evaluation_id}",
@@ -631,6 +718,24 @@ def get_evaluation_detail(token: str, evaluation_id: str) -> Dict[str, Any]:
 
 
 def create_evaluation(token: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    if WAIMS_DEMO_MODE:
+        details = _local_demo_details()
+        new_detail = _local_score_detail_from_payload(payload)
+        details.insert(0, new_detail)
+        _save_local_demo_details(details)
+        return {
+            "evaluation_id": new_detail["id"],
+            "overall_score": new_detail["overall_score"],
+            "components": new_detail["components"],
+            "assumptions": new_detail["assumptions"],
+            "tension_points": new_detail["tension_points"],
+            "recommended_action": new_detail["recommended_action"],
+            "player": new_detail["player"],
+            "summary_note": new_detail.get("summary_note"),
+            "strengths": new_detail.get("strengths"),
+            "concerns": new_detail.get("concerns"),
+            "mode": new_detail.get("mode"),
+        }
     with httpx.Client(timeout=30) as client:
         r = client.post(
             f"{API_BASE_URL}/evaluate-and-save",
@@ -642,6 +747,10 @@ def create_evaluation(token: str, payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def delete_evaluation(token: str, evaluation_id: str) -> Dict[str, Any]:
+    if WAIMS_DEMO_MODE:
+        details = [row for row in _local_demo_details() if row["id"] != evaluation_id]
+        _save_local_demo_details(details)
+        return {"ok": True, "deleted_id": evaluation_id}
     with httpx.Client(timeout=20) as client:
         r = client.delete(
             f"{API_BASE_URL}/evaluations/{evaluation_id}",
@@ -684,6 +793,7 @@ def action_class(action: Optional[str]) -> str:
 
 def render_header() -> None:
     env_class = "env-badge-live" if IS_LIVE_ENV else "env-badge-sandbox"
+    runtime_label = "Local Demo Mode" if WAIMS_DEMO_MODE else f"API {API_BASE_URL}"
     st.markdown(
         f"""
         <div class="waims-header">
@@ -694,7 +804,7 @@ def render_header() -> None:
             </div>
             <div class="waims-meta-row">
                 <div class="env-badge {env_class}">{WAIMS_ENV_LABEL}</div>
-                <div class="waims-kicker" style="margin-bottom:0;">API {API_BASE_URL}</div>
+                <div class="waims-kicker" style="margin-bottom:0;">{runtime_label}</div>
             </div>
         </div>
         """,
@@ -2018,11 +2128,23 @@ def main() -> None:
             st.error(f"{WAIMS_ENV_LABEL} environment")
         else:
             st.success(f"{WAIMS_ENV_LABEL} environment")
-        st.caption(f"Backend: {API_BASE_URL}")
+        if WAIMS_DEMO_MODE:
+            st.caption("Backend: local in-app demo data")
+            st.info("Local demo mode is on. No bearer token or backend is required.")
+        else:
+            st.caption(f"Backend: {API_BASE_URL}")
 
         st.markdown("## Access")
-        token = st.text_input("Bearer token", type="password", placeholder="Paste your Supabase access token here")
-        st.caption("Paste only the raw token, not the word Bearer.")
+        token = st.text_input(
+            "Bearer token",
+            type="password",
+            placeholder="Paste your Supabase access token here" if not WAIMS_DEMO_MODE else "Not required in local demo mode",
+            disabled=WAIMS_DEMO_MODE,
+        )
+        if not WAIMS_DEMO_MODE:
+            st.caption("Paste only the raw token, not the word Bearer.")
+        else:
+            st.caption("Interview-safe local mode: seeded demo dossiers run fully in memory.")
 
         st.markdown("## Filters")
         mode_filter = st.selectbox("Mode", ["All"] + list(MODE_LABELS.keys()), format_func=lambda x: "All" if x == "All" else MODE_LABELS[x])
@@ -2045,14 +2167,18 @@ def main() -> None:
     if load_data:
         st.session_state["load_requested"] = True
 
-    if not token and not st.session_state["load_requested"]:
-        st.info("Paste a sandbox bearer token in the sidebar, click 'Load briefing', and the board will populate from Supabase.")
-        st.caption("If you want a fast demo board, run scripts\\seed_demo_data.py first.")
-        return
+    if WAIMS_DEMO_MODE:
+        st.session_state["load_requested"] = True
+        token = token or "demo-local-token"
+    else:
+        if not token and not st.session_state["load_requested"]:
+            st.info("Paste a sandbox bearer token in the sidebar, click 'Load briefing', and the board will populate from Supabase.")
+            st.caption("If you want a fast demo board, run scripts\\seed_demo_data.py first.")
+            return
 
-    if not token:
-        st.warning("A bearer token is required to load the briefing.")
-        return
+        if not token:
+            st.warning("A bearer token is required to load the briefing.")
+            return
 
     evaluate_tab, board_tab = st.tabs(["Create Evaluation", "Board & Dossiers"])
 

@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 
 import httpx
 from dotenv import load_dotenv
+from waims_gm.demo_data import demo_payloads
 
 ROOT_ENV = Path(__file__).resolve().parents[1] / ".env"
 load_dotenv(ROOT_ENV)
@@ -72,127 +73,6 @@ def create_evaluation(token: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         )
         response.raise_for_status()
         return response.json()
-
-
-def demo_payloads() -> List[Dict[str, Any]]:
-    return [
-        {
-            "player": {
-                "id": "demo_d2_need_guard",
-                "name": "Ari Benton",
-                "position": "G",
-                "age": 22,
-                "offense_rating": 74.0,
-                "defense_rating": 77.0,
-                "shooting_rating": 72.0,
-                "playmaking_rating": 70.0,
-                "rebounding_rating": 39.0,
-                "health_risk": 0.12,
-                "upside": 0.69,
-                "minutes_stability": 0.84,
-                "expected_cost_tier": 1,
-            },
-            "ctx": {
-                "team_id": "sandbox-demo",
-                "timeline": "balanced",
-                "needs_by_position": {"G": 0.88, "F": 0.42, "C": 0.24},
-                "cap_flexibility": 0.44,
-                "risk_tolerance": 0.36,
-            },
-            "display_name": "WAIMS Demo",
-            "summary_note": "[DEMO] Ready guard who solves immediate minutes and ball-security needs for a lower-resource staff.",
-            "strengths": "Point-of-attack defense\nLive-dribble decision making\nLow-cost rotation fit",
-            "concerns": "Limited size\nNot a pure scoring creator",
-            "mode": "cbb_d2_low_resource",
-        },
-        {
-            "player": {
-                "id": "demo_d2_upside_wing",
-                "name": "Malik Stokes",
-                "position": "F",
-                "age": 19,
-                "offense_rating": 71.0,
-                "defense_rating": 68.0,
-                "shooting_rating": 74.0,
-                "playmaking_rating": 58.0,
-                "rebounding_rating": 64.0,
-                "health_risk": 0.16,
-                "upside": 0.88,
-                "minutes_stability": 0.58,
-                "expected_cost_tier": 2,
-            },
-            "ctx": {
-                "team_id": "sandbox-demo",
-                "timeline": "balanced",
-                "needs_by_position": {"G": 0.88, "F": 0.42, "C": 0.24},
-                "cap_flexibility": 0.44,
-                "risk_tolerance": 0.36,
-            },
-            "display_name": "WAIMS Demo",
-            "summary_note": "[DEMO] Younger wing with real growth runway, but less certainty if the question is immediate rotation help.",
-            "strengths": "Shotmaking upside\nLength and rebounding tools\nLong-term development ceiling",
-            "concerns": "Lower current readiness\nMore projection risk\nHigher acquisition uncertainty",
-            "mode": "cbb_d2_low_resource",
-        },
-        {
-            "player": {
-                "id": "demo_recruiting_long_wing",
-                "name": "Jalen Mercer",
-                "position": "F",
-                "age": 18,
-                "offense_rating": 68.0,
-                "defense_rating": 66.0,
-                "shooting_rating": 73.0,
-                "playmaking_rating": 61.0,
-                "rebounding_rating": 56.0,
-                "health_risk": 0.08,
-                "upside": 0.93,
-                "minutes_stability": 0.46,
-                "expected_cost_tier": 2,
-            },
-            "ctx": {
-                "team_id": "sandbox-demo",
-                "timeline": "rebuild",
-                "needs_by_position": {"G": 0.32, "F": 0.77, "C": 0.28},
-                "cap_flexibility": 0.58,
-                "risk_tolerance": 0.54,
-            },
-            "display_name": "WAIMS Demo",
-            "summary_note": "[DEMO] Long-horizon recruiting target with future-oriented shotmaking and frame-based upside.",
-            "strengths": "Development runway\nProjectable jumper\nAge-adjusted upside signal",
-            "concerns": "Needs strength\nNot ready for immediate high-usage role",
-            "mode": "recruiting_only",
-        },
-        {
-            "player": {
-                "id": "demo_high_major_portal_guard",
-                "name": "Tori Gaines",
-                "position": "G",
-                "age": 24,
-                "offense_rating": 80.0,
-                "defense_rating": 70.0,
-                "shooting_rating": 78.0,
-                "playmaking_rating": 76.0,
-                "rebounding_rating": 35.0,
-                "health_risk": 0.14,
-                "upside": 0.71,
-                "minutes_stability": 0.82,
-                "expected_cost_tier": 3,
-            },
-            "ctx": {
-                "team_id": "sandbox-demo",
-                "timeline": "win_now",
-                "needs_by_position": {"G": 0.84, "F": 0.38, "C": 0.20},
-                "cap_flexibility": 0.48,
-                "risk_tolerance": 0.34,
-            },
-            "display_name": "WAIMS Demo",
-            "summary_note": "[DEMO] High-major portal guard with immediate usage value and a clean ball-screen translation profile.",
-            "strengths": "Immediate scoring gravity\nBall-screen command\nOlder, more stable role projection",
-            "concerns": "More expensive add\nLess future growth than younger targets",
-            "mode": "cbb_high_major",
-        },
-    ]
 
 
 def print_demo_catalog() -> None:

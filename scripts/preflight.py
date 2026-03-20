@@ -11,7 +11,7 @@ ROOT = os.path.dirname(os.path.dirname(__file__))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from app.config import API_BASE_URL, WAIMS_ENV, WAIMS_ENV_LABEL, validate_runtime_settings
+from app.config import API_BASE_URL, WAIMS_DEMO_MODE, WAIMS_ENV, WAIMS_ENV_LABEL, validate_runtime_settings
 
 
 def _check_health() -> tuple[bool, str]:
@@ -55,6 +55,7 @@ def main() -> int:
     print("WAIMS-GM Preflight")
     print(f"Environment: {WAIMS_ENV}")
     print(f"Label: {WAIMS_ENV_LABEL}")
+    print(f"Demo mode: {'on' if WAIMS_DEMO_MODE else 'off'}")
     print(f"API base URL: {API_BASE_URL}")
 
     if errors:

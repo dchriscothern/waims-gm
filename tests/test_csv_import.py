@@ -1,0 +1,37 @@
+import unittest
+
+from streamlit_app import build_csv_template_text, parse_csv_import_text
+
+
+class CsvImportTests(unittest.TestCase):
+    def test_template_includes_expected_headers_and_sample_rows(self):
+        template = build_csv_template_text()
+
+        self.assertIn("player_id,player_name,position,age", template)
+        self.assertIn("mode", template)
+        self.assertIn("Ari Benton", template)
+
+    def test_parse_csv_import_text_uses_default_mode_when_blank(self):
+        csv_text = """display_name,player_id,player_name,position,age,offense_rating,defense_rating,shooting_rating,playmaking_rating,rebounding_rating,health_risk,upside,minutes_stability,expected_cost_tier,team_id,timeline,need_g,need_f,need_c,cap_flexibility,risk_tolerance,summary_note,strengths,concerns,mode
+Coach Demo,p900,Jordan Hale,G,22,76,68,74,72,40,0.12,0.71,0.83,1,team-x,balanced,0.82,0.35,0.18,0.54,0.38,Steady lead guard,Pick and roll,Size,
+"""
+        payloads, errors = parse_csv_import_text(csv_text, default_mode="cbb_d2_low_resource")
+
+        self.assertEqual(errors, [])
+        self.assertEqual(len(payloads), 1)
+        self.assertEqual(payloads[0]["mode"], "cbb_d2_low_resource")
+        self.assertEqual(payloads[0]["player"]["name"], "Jordan Hale")
+
+    def test_parse_csv_import_text_reports_invalid_timeline(self):
+        csv_text = """display_name,player_id,player_name,position,age,offense_rating,defense_rating,shooting_rating,playmaking_rating,rebounding_rating,health_risk,upside,minutes_stability,expected_cost_tier,team_id,timeline,need_g,need_f,need_c,cap_flexibility,risk_tolerance,summary_note,strengths,concerns,mode
+Coach Demo,p901,Riley Stone,F,21,71,75,72,58,65,0.14,0.66,0.79,2,team-y,unknown,0.36,0.78,0.22,0.61,0.42,,Defends spots,Creation ceiling,cbb_high_major
+"""
+        payloads, errors = parse_csv_import_text(csv_text, default_mode="cbb_high_major")
+
+        self.assertEqual(payloads, [])
+        self.assertEqual(len(errors), 1)
+        self.assertIn("timeline", errors[0])
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,7 +1,8 @@
 ﻿from __future__ import annotations
 
+import csv
 from datetime import datetime, timezone
-from io import BytesIO
+from io import BytesIO, StringIO
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -598,6 +599,57 @@ COMPONENT_LABELS = {
     "availability": "Availability",
     "value": "Value",
 }
+
+CSV_IMPORT_COLUMNS = [
+    "display_name",
+    "player_id",
+    "player_name",
+    "position",
+    "age",
+    "offense_rating",
+    "defense_rating",
+    "shooting_rating",
+    "playmaking_rating",
+    "rebounding_rating",
+    "health_risk",
+    "upside",
+    "minutes_stability",
+    "expected_cost_tier",
+    "team_id",
+    "timeline",
+    "need_g",
+    "need_f",
+    "need_c",
+    "cap_flexibility",
+    "risk_tolerance",
+    "summary_note",
+    "strengths",
+    "concerns",
+    "mode",
+]
+
+CSV_REQUIRED_COLUMNS = [
+    "player_id",
+    "player_name",
+    "position",
+    "age",
+    "offense_rating",
+    "defense_rating",
+    "shooting_rating",
+    "playmaking_rating",
+    "rebounding_rating",
+    "health_risk",
+    "upside",
+    "minutes_stability",
+    "expected_cost_tier",
+    "team_id",
+    "timeline",
+    "need_g",
+    "need_f",
+    "need_c",
+    "cap_flexibility",
+    "risk_tolerance",
+]
 
 PRESETS: Dict[str, Dict[str, Dict[str, Any]]] = {
     "pro_wnba": {
@@ -2040,6 +2092,136 @@ def build_payload_from_form(
     }
 
 
+def _csv_cell(row: Dict[str, str], key: str) -> str:
+    return (row.get(key) or "").strip()
+
+
+def _csv_float(row: Dict[str, str], key: str, row_num: int) -> float:
+    raw = _csv_cell(row, key)
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise ValueError(f"Row {row_num}: `{key}` must be a number.") from exc
+
+
+def _csv_int(row: Dict[str, str], key: str, row_num: int) -> int:
+    raw = _csv_cell(row, key)
+    try:
+        return int(float(raw))
+    except ValueError as exc:
+        raise ValueError(f"Row {row_num}: `{key}` must be a whole number.") from exc
+
+
+def _payload_to_csv_row(payload: Dict[str, Any]) -> Dict[str, str]:
+    player = payload.get("player", {}) or {}
+    ctx = payload.get("ctx", {}) or {}
+    needs = ctx.get("needs_by_position", {}) or {}
+    return {
+        "display_name": str(payload.get("display_name") or ""),
+        "player_id": str(player.get("id") or ""),
+        "player_name": str(player.get("name") or ""),
+        "position": str(player.get("position") or ""),
+        "age": str(player.get("age") or ""),
+        "offense_rating": str(player.get("offense_rating") or ""),
+        "defense_rating": str(player.get("defense_rating") or ""),
+        "shooting_rating": str(player.get("shooting_rating") or ""),
+        "playmaking_rating": str(player.get("playmaking_rating") or ""),
+        "rebounding_rating": str(player.get("rebounding_rating") or ""),
+        "health_risk": str(player.get("health_risk") or ""),
+        "upside": str(player.get("upside") or ""),
+        "minutes_stability": str(player.get("minutes_stability") or ""),
+        "expected_cost_tier": str(player.get("expected_cost_tier") or ""),
+        "team_id": str(ctx.get("team_id") or ""),
+        "timeline": str(ctx.get("timeline") or ""),
+        "need_g": str(needs.get("G") or ""),
+        "need_f": str(needs.get("F") or ""),
+        "need_c": str(needs.get("C") or ""),
+        "cap_flexibility": str(ctx.get("cap_flexibility") or ""),
+        "risk_tolerance": str(ctx.get("risk_tolerance") or ""),
+        "summary_note": str(payload.get("summary_note") or ""),
+        "strengths": str(payload.get("strengths") or ""),
+        "concerns": str(payload.get("concerns") or ""),
+        "mode": str(payload.get("mode") or ""),
+    }
+
+
+def build_csv_template_text() -> str:
+    sample_rows = [_payload_to_csv_row(payload) for payload in demo_payloads()[:2]]
+    buffer = StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=CSV_IMPORT_COLUMNS)
+    writer.writeheader()
+    for row in sample_rows:
+        writer.writerow(row)
+    return buffer.getvalue()
+
+
+def parse_csv_import_text(text: str, default_mode: str = DEFAULT_MODE) -> tuple[List[Dict[str, Any]], List[str]]:
+    reader = csv.DictReader(StringIO(text))
+    payloads: List[Dict[str, Any]] = []
+    errors: List[str] = []
+
+    if not reader.fieldnames:
+        return [], ["CSV import needs a header row."]
+
+    missing_headers = [col for col in CSV_REQUIRED_COLUMNS if col not in reader.fieldnames]
+    if missing_headers:
+        return [], [f"Missing required CSV column(s): {', '.join(missing_headers)}"]
+
+    for row_num, row in enumerate(reader, start=2):
+        if not any((value or "").strip() for value in row.values()):
+            continue
+        try:
+            for key in CSV_REQUIRED_COLUMNS:
+                if not _csv_cell(row, key):
+                    raise ValueError(f"Row {row_num}: `{key}` is required.")
+
+            position = _csv_cell(row, "position").upper()
+            if position not in {"G", "F", "C"}:
+                raise ValueError(f"Row {row_num}: `position` must be G, F, or C.")
+
+            timeline = _csv_cell(row, "timeline")
+            if timeline not in {"win_now", "balanced", "rebuild"}:
+                raise ValueError(f"Row {row_num}: `timeline` must be win_now, balanced, or rebuild.")
+
+            mode = _csv_cell(row, "mode") or default_mode
+            if mode not in MODE_LABELS:
+                raise ValueError(f"Row {row_num}: `mode` must be one of {', '.join(MODE_LABELS.keys())}.")
+
+            payloads.append(
+                build_payload_from_form(
+                    _csv_cell(row, "display_name") or "CSV Import",
+                    _csv_cell(row, "player_id"),
+                    _csv_cell(row, "player_name"),
+                    position,
+                    _csv_int(row, "age", row_num),
+                    _csv_float(row, "offense_rating", row_num),
+                    _csv_float(row, "defense_rating", row_num),
+                    _csv_float(row, "shooting_rating", row_num),
+                    _csv_float(row, "playmaking_rating", row_num),
+                    _csv_float(row, "rebounding_rating", row_num),
+                    _csv_float(row, "health_risk", row_num),
+                    _csv_float(row, "upside", row_num),
+                    _csv_float(row, "minutes_stability", row_num),
+                    _csv_int(row, "expected_cost_tier", row_num),
+                    _csv_cell(row, "team_id"),
+                    timeline,
+                    _csv_float(row, "need_g", row_num),
+                    _csv_float(row, "need_f", row_num),
+                    _csv_float(row, "need_c", row_num),
+                    _csv_float(row, "cap_flexibility", row_num),
+                    _csv_float(row, "risk_tolerance", row_num),
+                    _csv_cell(row, "summary_note"),
+                    _csv_cell(row, "strengths"),
+                    _csv_cell(row, "concerns"),
+                    mode,
+                )
+            )
+        except ValueError as exc:
+            errors.append(str(exc))
+
+    return payloads, errors
+
+
 def build_compare_export_markdown(left_detail: Dict[str, Any], right_detail: Dict[str, Any]) -> str:
     left_detail = normalize_detail_for_display(left_detail)
     right_detail = normalize_detail_for_display(right_detail)
@@ -2517,6 +2699,63 @@ def main() -> None:
         preferred_mode = selected_mode
         mode_presets = PRESETS.get(selected_mode, {})
         render_mode_focus_banner(selected_mode, "create", show_label=False)
+        with st.expander("Batch import from CSV", expanded=False):
+            st.caption("Upload a CSV, preview the rows, and save them through the same evaluation pipeline used by the intake form.")
+            st.download_button(
+                "Download CSV template",
+                data=build_csv_template_text(),
+                file_name="waims_gm_import_template.csv",
+                mime="text/csv",
+                key="download_csv_template",
+            )
+            uploaded_csv = st.file_uploader("Upload evaluation CSV", type=["csv"], key="evaluation_csv_upload")
+            if uploaded_csv is not None:
+                try:
+                    csv_text = uploaded_csv.getvalue().decode("utf-8-sig")
+                except UnicodeDecodeError:
+                    st.error("CSV must be UTF-8 encoded.")
+                else:
+                    csv_payloads, csv_errors = parse_csv_import_text(csv_text, default_mode=selected_mode)
+                    if csv_errors:
+                        for error in csv_errors:
+                            st.error(error)
+                    if csv_payloads:
+                        preview_rows = [
+                            {
+                                "Player": payload["player"]["name"],
+                                "Mode": MODE_LABELS.get(payload.get("mode") or DEFAULT_MODE, payload.get("mode") or DEFAULT_MODE),
+                                "Team": payload["ctx"]["team_id"],
+                                "Position": payload["player"]["position"],
+                                "Score Inputs": f"O {payload['player']['offense_rating']:.0f} / D {payload['player']['defense_rating']:.0f}",
+                            }
+                            for payload in csv_payloads
+                        ]
+                        st.dataframe(preview_rows, use_container_width=True, hide_index=True)
+                        if st.button("Import CSV rows", key="import_csv_rows"):
+                            created_count = 0
+                            import_errors: List[str] = []
+                            last_new_id: Optional[str] = None
+                            for idx, payload in enumerate(csv_payloads, start=1):
+                                try:
+                                    created = create_evaluation(token, payload)
+                                    created_count += 1
+                                    last_new_id = created.get("evaluation_id") or last_new_id
+                                except httpx.HTTPStatusError as exc:
+                                    import_errors.append(
+                                        f"Row {idx} ({payload['player']['name']}): {exc.response.status_code} {exc.response.text}"
+                                    )
+                                except Exception as exc:
+                                    import_errors.append(f"Row {idx} ({payload['player']['name']}): {exc}")
+
+                            if last_new_id:
+                                st.session_state["selected_evaluation_id"] = last_new_id
+                            st.session_state["load_requested"] = True
+                            if created_count:
+                                st.success(f"Imported {created_count} evaluation(s) from CSV.")
+                            for error in import_errors:
+                                st.error(error)
+                            if created_count:
+                                st.rerun()
         preset_name = st.selectbox("Preset", ["Custom"] + list(mode_presets.keys()), index=0, key="preset_name")
         preset = mode_presets.get(preset_name, {})
         st.caption(f"Using {MODE_LABELS.get(selected_mode, selected_mode)} presets and recommendation language for this file.")

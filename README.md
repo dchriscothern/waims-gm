@@ -35,6 +35,7 @@ Files under `app/auth.py`, `app/models.py`, `app/routes/`, and `app/services/` a
 The app currently supports:
 
 - creating evaluations
+- batch CSV import through the same evaluation pipeline
 - saving evaluations
 - listing saved evaluations
 - loading dossier/detail views
@@ -51,6 +52,7 @@ The app currently supports:
 `streamlit_app.py` handles:
 
 - intake form
+- CSV import preview + upload
 - decision board
 - dossier/detail rendering
 - compare mode

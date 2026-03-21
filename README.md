@@ -4,6 +4,24 @@ WAIMS-GM is a basketball decision-support application for turning scattered play
 
 It is built with a Streamlit frontend, a FastAPI backend, and Supabase-backed auth and persistence. The scoring core is deterministic and mode-aware, with optional AI/LLM augmentation reserved for future workflow enhancements rather than core system logic.
 
+## Product Preview
+
+### Board
+
+![WAIMS-GM board overview](assets/board_view.png)
+
+### Player Dossier
+
+![WAIMS-GM player dossier](assets/dossier_view.png)
+
+### Compare
+
+![WAIMS-GM comparison workspace](assets/compare_view.png)
+
+### Workflow Actions
+
+![WAIMS-GM create workflow and optional CSV import](assets/workflow-actions.png)
+
 ## Problem
 
 Basketball staffs often make player decisions across disconnected tools:

@@ -23,7 +23,7 @@ Before the demo:
 6. Seed canonical demo players with `scripts/seed_demo_data.py`.
    For a tighter demo, you can seed only one file with `scripts/seed_demo_data.py --only demo_high_major_portal_guard`.
 7. Generate a fresh sandbox bearer token with `scripts/get_token.py`.
-8. Paste the token into the sidebar and click `Load briefing`.
+8. Paste the token into the sidebar and click `Refresh board`.
 9. Confirm at least two demo evaluations are present for compare mode.
 
 ## Recommended Story

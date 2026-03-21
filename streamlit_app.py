@@ -3,6 +3,7 @@
 import csv
 from datetime import datetime, timezone
 from io import BytesIO, StringIO
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -650,6 +651,8 @@ CSV_REQUIRED_COLUMNS = [
     "cap_flexibility",
     "risk_tolerance",
 ]
+
+EXAMPLE_IMPORT_CSV_PATH = Path(__file__).resolve().parent / "examples" / "waims_gm_import_sample.csv"
 
 PRESETS: Dict[str, Dict[str, Dict[str, Any]]] = {
     "pro_wnba": {
@@ -2185,7 +2188,14 @@ def _payload_to_csv_row(payload: Dict[str, Any]) -> Dict[str, str]:
 
 
 def build_csv_template_text() -> str:
-    sample_rows = [_payload_to_csv_row(payload) for payload in demo_payloads()[:2]]
+    buffer = StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=CSV_IMPORT_COLUMNS)
+    writer.writeheader()
+    return buffer.getvalue()
+
+
+def build_csv_sample_text() -> str:
+    sample_rows = [_payload_to_csv_row(payload) for payload in demo_payloads()[:3]]
     buffer = StringIO()
     writer = csv.DictWriter(buffer, fieldnames=CSV_IMPORT_COLUMNS)
     writer.writeheader()
@@ -2263,7 +2273,7 @@ def parse_csv_import_text(text: str, default_mode: str = DEFAULT_MODE) -> tuple[
 
 def split_csv_duplicates(
     payloads: List[Dict[str, Any]], existing_evaluations: List[Dict[str, Any]]
-) -> tuple[List[Dict[str, Any]], List[Dict[str, str]]]:
+) -> tuple[List[Dict[str, Any]], List[Dict[str, str]], List[Dict[str, Any]]]:
     existing_keys = {
         (
             str(((row.get("player") or {}).get("id") or "")).strip().lower(),
@@ -2274,6 +2284,7 @@ def split_csv_duplicates(
 
     unique_payloads: List[Dict[str, Any]] = []
     duplicates: List[Dict[str, str]] = []
+    duplicate_matches: List[Dict[str, Any]] = []
 
     for payload in payloads:
         player = payload.get("player", {}) or {}
@@ -2296,8 +2307,9 @@ def split_csv_duplicates(
                 "Existing Mode": MODE_LABELS.get(existing.get("mode") or DEFAULT_MODE, existing.get("mode") or DEFAULT_MODE),
             }
         )
+        duplicate_matches.append({"payload": payload, "existing": existing})
 
-    return unique_payloads, duplicates
+    return unique_payloads, duplicates, duplicate_matches
 
 
 def build_compare_export_markdown(left_detail: Dict[str, Any], right_detail: Dict[str, Any]) -> str:
@@ -2659,6 +2671,8 @@ def main() -> None:
         st.session_state["preferred_mode_selector"] = st.session_state["preferred_mode"]
     if "product_mode" not in st.session_state:
         st.session_state["product_mode"] = st.session_state["preferred_mode"]
+    if "csv_import_text" not in st.session_state:
+        st.session_state["csv_import_text"] = ""
 
     preferred_mode = st.session_state["preferred_mode"]
 
@@ -2703,7 +2717,7 @@ def main() -> None:
 
         st.markdown("## Filters")
         mode_scope = st.selectbox(
-            "Board scope",
+            "Board view",
             ["Focused", "All"] + list(MODE_LABELS.keys()),
             index=0,
             format_func=lambda x: (
@@ -2716,10 +2730,10 @@ def main() -> None:
         sort_by = st.selectbox("Sort by", ["Created", "Score", "Recommendation", "Mode", "Player Name"], index=0)
         descending = st.checkbox("Descending", value=True)
         hide_placeholder = st.checkbox("Hide placeholder/test junk", value=True)
-        load_data = st.button("Load briefing")
+        load_data = st.button("Refresh board")
 
-        st.markdown("## Manage Selected")
-        delete_selected = st.button("Delete selected evaluation")
+        st.markdown("## Selected File")
+        delete_selected = st.button("Delete selected file")
 
         st.markdown("## Export Status")
         if WORD_EXPORT_AVAILABLE:
@@ -2736,7 +2750,7 @@ def main() -> None:
         token = token or "demo-local-token"
     else:
         if not token and not st.session_state["load_requested"]:
-            st.info("Paste a sandbox bearer token in the sidebar, click 'Load briefing', and the board will populate from Supabase.")
+            st.info("Paste a sandbox bearer token in the sidebar, click 'Refresh board', and the board will populate from Supabase.")
             st.caption("If you want a fast demo board, run scripts\\seed_demo_data.py first.")
             return
 
@@ -2786,73 +2800,122 @@ def main() -> None:
         preferred_mode = selected_mode
         mode_presets = PRESETS.get(selected_mode, {})
         render_mode_focus_banner(selected_mode, "create", show_label=False)
-        with st.expander("Batch import from CSV", expanded=False):
-            st.caption("Upload a CSV, preview the rows, and save them through the same evaluation pipeline used by the intake form.")
-            st.download_button(
-                "Download CSV template",
-                data=build_csv_template_text(),
-                file_name="waims_gm_import_template.csv",
-                mime="text/csv",
-                key="download_csv_template",
-            )
+        with st.expander("Optional: import evaluations from CSV (after demo)", expanded=False):
+            st.caption("This is a secondary workflow. For demos, use the seeded board first. Use CSV import when you want to bring in a batch of player files.")
+            csv_download_left, csv_download_right = st.columns(2, gap="small")
+            with csv_download_left:
+                st.download_button(
+                    "Template CSV",
+                    data=build_csv_template_text(),
+                    file_name="waims_gm_import_template.csv",
+                    mime="text/csv",
+                    key="download_csv_template",
+                    use_container_width=True,
+                )
+            with csv_download_right:
+                st.download_button(
+                    "Sample CSV",
+                    data=build_csv_sample_text(),
+                    file_name="waims_gm_import_sample.csv",
+                    mime="text/csv",
+                    key="download_csv_sample",
+                    use_container_width=True,
+                )
+            st.caption("Template CSV gives you the schema only. Sample CSV gives you ready-to-import demo rows.")
+            if st.button("Load sample rows", key="load_sample_rows"):
+                st.session_state["csv_import_text"] = build_csv_sample_text()
             uploaded_csv = st.file_uploader("Upload evaluation CSV", type=["csv"], key="evaluation_csv_upload")
+            csv_text = st.session_state.get("csv_import_text", "")
             if uploaded_csv is not None:
                 try:
                     csv_text = uploaded_csv.getvalue().decode("utf-8-sig")
+                    st.session_state["csv_import_text"] = csv_text
                 except UnicodeDecodeError:
                     st.error("CSV must be UTF-8 encoded.")
-                else:
-                    csv_payloads, csv_errors = parse_csv_import_text(csv_text, default_mode=selected_mode)
-                    if csv_errors:
-                        for error in csv_errors:
-                            st.error(error)
-                    if csv_payloads:
-                        importable_payloads, duplicate_rows = split_csv_duplicates(csv_payloads, raw_evaluations)
-                        preview_rows = [
-                            {
-                                "Player": payload["player"]["name"],
-                                "Mode": MODE_LABELS.get(payload.get("mode") or DEFAULT_MODE, payload.get("mode") or DEFAULT_MODE),
-                                "Team": payload["ctx"]["team_id"],
-                                "Position": payload["player"]["position"],
-                                "Score Inputs": f"O {payload['player']['offense_rating']:.0f} / D {payload['player']['defense_rating']:.0f}",
-                            }
-                            for payload in csv_payloads
-                        ]
-                        st.dataframe(preview_rows, use_container_width=True, hide_index=True)
-                        if duplicate_rows:
-                            st.warning(f"{len(duplicate_rows)} row(s) already match an existing player_id + team_id on the board and will be skipped.")
-                            st.dataframe(duplicate_rows, use_container_width=True, hide_index=True)
-                        if csv_payloads and not importable_payloads:
-                            st.info("All uploaded rows already exist on the current board.")
-                        if importable_payloads and st.button("Import non-duplicate rows", key="import_csv_rows"):
-                            created_count = 0
-                            import_errors: List[str] = []
-                            last_new_id: Optional[str] = None
-                            for idx, payload in enumerate(importable_payloads, start=1):
+            if csv_text:
+                csv_payloads, csv_errors = parse_csv_import_text(csv_text, default_mode=selected_mode)
+                if csv_errors:
+                    for error in csv_errors:
+                        st.error(error)
+                if csv_payloads:
+                    importable_payloads, duplicate_rows, duplicate_matches = split_csv_duplicates(csv_payloads, raw_evaluations)
+                    preview_rows = [
+                        {
+                            "Player": payload["player"]["name"],
+                            "Mode": MODE_LABELS.get(payload.get("mode") or DEFAULT_MODE, payload.get("mode") or DEFAULT_MODE),
+                            "Team": payload["ctx"]["team_id"],
+                            "Position": payload["player"]["position"],
+                            "Score Inputs": f"O {payload['player']['offense_rating']:.0f} / D {payload['player']['defense_rating']:.0f}",
+                        }
+                        for payload in csv_payloads
+                    ]
+                    st.dataframe(preview_rows, use_container_width=True, hide_index=True)
+                    replace_duplicates = False
+                    if duplicate_rows:
+                        st.warning(f"{len(duplicate_rows)} row(s) already match an existing player_id + team_id on the board.")
+                        st.dataframe(duplicate_rows, use_container_width=True, hide_index=True)
+                        replace_duplicates = st.checkbox(
+                            "Replace matching evaluations instead of skipping them",
+                            value=False,
+                            key="replace_csv_duplicates",
+                        )
+                    import_button_label = "Import rows"
+                    if duplicate_rows and not replace_duplicates:
+                        import_button_label = "Import new rows only"
+                    elif duplicate_rows and replace_duplicates:
+                        import_button_label = "Replace duplicates and import all rows"
+
+                    actionable_payloads = list(importable_payloads)
+                    if replace_duplicates:
+                        actionable_payloads = actionable_payloads + [item["payload"] for item in duplicate_matches]
+
+                    if csv_payloads and not actionable_payloads:
+                        st.info("All uploaded rows already exist on the current board.")
+                    if actionable_payloads and st.button(import_button_label, key="import_csv_rows"):
+                        created_count = 0
+                        replaced_count = 0
+                        import_errors: List[str] = []
+                        last_new_id: Optional[str] = None
+                        if replace_duplicates:
+                            for match in duplicate_matches:
+                                existing_row = match["existing"]
                                 try:
-                                    created = create_evaluation(token, payload)
-                                    created_count += 1
-                                    last_new_id = created.get("evaluation_id") or last_new_id
+                                    delete_evaluation(token, existing_row["id"])
+                                    replaced_count += 1
                                 except httpx.HTTPStatusError as exc:
                                     import_errors.append(
-                                        f"Row {idx} ({payload['player']['name']}): {exc.response.status_code} {exc.response.text}"
+                                        f"Replace step ({existing_row.get('id', 'unknown')}): {exc.response.status_code} {exc.response.text}"
                                     )
                                 except Exception as exc:
-                                    import_errors.append(f"Row {idx} ({payload['player']['name']}): {exc}")
+                                    import_errors.append(f"Replace step ({existing_row.get('id', 'unknown')}): {exc}")
 
-                            if last_new_id:
-                                st.session_state["selected_evaluation_id"] = last_new_id
-                            st.session_state["load_requested"] = True
-                            if created_count:
-                                skipped_count = len(duplicate_rows)
-                                summary = f"Imported {created_count} evaluation(s) from CSV."
-                                if skipped_count:
-                                    summary += f" Skipped {skipped_count} duplicate row(s)."
-                                st.success(summary)
-                            for error in import_errors:
-                                st.error(error)
-                            if created_count:
-                                st.rerun()
+                        for idx, payload in enumerate(actionable_payloads, start=1):
+                            try:
+                                created = create_evaluation(token, payload)
+                                created_count += 1
+                                last_new_id = created.get("evaluation_id") or last_new_id
+                            except httpx.HTTPStatusError as exc:
+                                import_errors.append(
+                                    f"Row {idx} ({payload['player']['name']}): {exc.response.status_code} {exc.response.text}"
+                                )
+                            except Exception as exc:
+                                import_errors.append(f"Row {idx} ({payload['player']['name']}): {exc}")
+
+                        if last_new_id:
+                            st.session_state["selected_evaluation_id"] = last_new_id
+                        st.session_state["load_requested"] = True
+                        if created_count:
+                            skipped_count = len(duplicate_rows) if not replace_duplicates else 0
+                            summary = f"Imported {created_count} evaluation(s) from CSV."
+                            if replaced_count:
+                                summary += f" Replaced {replaced_count} matching evaluation(s)."
+                            elif skipped_count:
+                                summary += f" Skipped {skipped_count} duplicate row(s)."
+                            st.success(summary)
+                        for error in import_errors:
+                            st.error(error)
+                        if created_count:
+                            st.rerun()
         preset_name = st.selectbox("Preset", ["Custom"] + list(mode_presets.keys()), index=0, key="preset_name")
         preset = mode_presets.get(preset_name, {})
         st.caption(f"Using {MODE_LABELS.get(selected_mode, selected_mode)} presets and recommendation language for this file.")

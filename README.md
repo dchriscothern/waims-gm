@@ -188,7 +188,7 @@ Use this flow to verify Streamlit + FastAPI + Supabase together:
 2. Confirm `/health` reports `sandbox`.
 3. Start Streamlit and confirm the header badge and sidebar say `Sandbox`.
 4. Fetch a sandbox Supabase token with `python scripts/get_token.py`.
-5. Paste the token into the sidebar and click `Load briefing`.
+5. Paste the token into the sidebar and click `Refresh board`.
 6. Create a new evaluation and confirm the save succeeds.
 7. Verify the new evaluation appears on the board.
 8. Open the dossier and confirm recommendation, score cards, Decision Lens, and Five Layer Diagnostic render correctly.
@@ -224,6 +224,15 @@ Useful repo assets for demos and environment setup:
 - Supabase schema and RLS setup: [supabase/waims_gm_schema.sql](C:/GitHub/waims-gm/supabase/waims_gm_schema.sql)
 - demo data seeding script: [scripts/seed_demo_data.py](C:/GitHub/waims-gm/scripts/seed_demo_data.py)
 - demo bootstrap script: [scripts/demo_bootstrap.ps1](C:/GitHub/waims-gm/scripts/demo_bootstrap.ps1)
+- sample CSV import file: [examples/waims_gm_import_sample.csv](C:/GitHub/waims-gm/examples/waims_gm_import_sample.csv)
+
+Import evaluations from a spreadsheet in the `Create Evaluation` tab:
+
+- download the in-app template CSV for the expected columns
+- or start from [examples/waims_gm_import_sample.csv](C:/GitHub/waims-gm/examples/waims_gm_import_sample.csv)
+- preview rows before saving
+- skip duplicates automatically by `player_id + team_id`
+- optionally replace matching evaluations during import
 
 Seed the sandbox with repeatable demo players using:
 

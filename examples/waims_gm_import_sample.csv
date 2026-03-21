@@ -1,0 +1,14 @@
+display_name,player_id,player_name,position,age,offense_rating,defense_rating,shooting_rating,playmaking_rating,rebounding_rating,health_risk,upside,minutes_stability,expected_cost_tier,team_id,timeline,need_g,need_f,need_c,cap_flexibility,risk_tolerance,summary_note,strengths,concerns,mode
+WAIMS Demo,demo_d2_need_guard,Ari Benton,G,22,74.0,77.0,72.0,70.0,39.0,0.12,0.69,0.84,1,sandbox-demo,balanced,0.88,0.42,0.24,0.44,0.36,[DEMO] Ready guard who solves immediate minutes and ball-security needs for a lower-resource staff.,"Point-of-attack defense
+Live-dribble decision making
+Low-cost rotation fit","Limited size
+Not a pure scoring creator",cbb_d2_low_resource
+WAIMS Demo,demo_d2_upside_wing,Malik Stokes,F,19,71.0,68.0,74.0,58.0,64.0,0.16,0.88,0.58,2,sandbox-demo,balanced,0.88,0.42,0.24,0.44,0.36,"[DEMO] Younger wing with real growth runway, but less certainty if the question is immediate rotation help.","Shotmaking upside
+Length and rebounding tools
+Long-term development ceiling","Lower current readiness
+More projection risk
+Higher acquisition uncertainty",cbb_d2_low_resource
+WAIMS Demo,demo_recruiting_long_wing,Jalen Mercer,F,18,68.0,66.0,73.0,61.0,56.0,0.08,0.93,0.46,2,sandbox-demo,rebuild,0.32,0.77,0.28,0.58,0.54,[DEMO] Long-horizon recruiting target with future-oriented shotmaking and frame-based upside.,"Development runway
+Projectable jumper
+Age-adjusted upside signal","Needs strength
+Not ready for immediate high-usage role",recruiting_only

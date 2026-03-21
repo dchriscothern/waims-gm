@@ -1,6 +1,6 @@
 import unittest
 
-from streamlit_app import build_csv_template_text, parse_csv_import_text
+from streamlit_app import build_csv_template_text, parse_csv_import_text, split_csv_duplicates
 
 
 class CsvImportTests(unittest.TestCase):
@@ -31,6 +31,36 @@ Coach Demo,p901,Riley Stone,F,21,71,75,72,58,65,0.14,0.66,0.79,2,team-y,unknown,
         self.assertEqual(payloads, [])
         self.assertEqual(len(errors), 1)
         self.assertIn("timeline", errors[0])
+
+    def test_split_csv_duplicates_flags_player_id_plus_team_id(self):
+        payloads = [
+            {
+                "player": {"id": "p900", "name": "Jordan Hale"},
+                "ctx": {"team_id": "team-x"},
+                "mode": "cbb_d2_low_resource",
+            },
+            {
+                "player": {"id": "p901", "name": "Riley Stone"},
+                "ctx": {"team_id": "team-y"},
+                "mode": "cbb_high_major",
+            },
+        ]
+        existing = [
+            {
+                "player": {"id": "p900"},
+                "team_id": "team-x",
+                "overall_score": 74.2,
+                "mode": "cbb_d2_low_resource",
+            }
+        ]
+
+        unique_payloads, duplicates = split_csv_duplicates(payloads, existing)
+
+        self.assertEqual(len(unique_payloads), 1)
+        self.assertEqual(unique_payloads[0]["player"]["id"], "p901")
+        self.assertEqual(len(duplicates), 1)
+        self.assertEqual(duplicates[0]["Player ID"], "p900")
+        self.assertEqual(duplicates[0]["Team"], "team-x")
 
 
 if __name__ == "__main__":

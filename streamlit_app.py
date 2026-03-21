@@ -1103,6 +1103,44 @@ def build_dossier_takeaways(detail: Dict[str, Any]) -> List[str]:
     ]
 
 
+def build_executive_brief_cards(detail: Dict[str, Any]) -> List[Dict[str, str]]:
+    detail = normalize_detail_for_display(detail)
+    player = detail.get("player", {}) or {}
+    ctx = detail.get("ctx", {}) or {}
+    mode = detail.get("mode") or DEFAULT_MODE
+    components = detail.get("components", {}) or {}
+    component_scores = [
+        (label, _component_number(components, key) or 0.0)
+        for key, label in COMPONENT_LABELS.items()
+    ]
+    component_scores.sort(key=lambda item: item[1], reverse=True)
+    strongest_label, strongest_value = component_scores[0]
+    second_label, second_value = component_scores[1]
+
+    needs = ctx.get("needs_by_position", {}) or {}
+    pos = player.get("position", "—")
+    need_value = needs.get(pos)
+    tension_points = detail.get("tension_points", []) or []
+    primary_watch = tension_points[0] if tension_points else "No major tension points are currently flagged in this file."
+
+    why_now = (
+        f"{clean_action(detail.get('recommended_action'), mode)} at {format_score(detail.get('overall_score'))}. "
+        f"{strongest_label} ({format_score(strongest_value)}) and {second_label} ({format_score(second_value)}) are driving the file."
+    )
+    why_not = primary_watch
+    decision_driver = (
+        f"{pos} need is {need_value:.2f}. {get_mode_playbook(mode)['weight_note']}"
+        if need_value is not None
+        else get_mode_playbook(mode)["weight_note"]
+    )
+
+    return [
+        {"title": "Why Now", "winner": clean_action(detail.get("recommended_action"), mode), "note": why_now},
+        {"title": "Why Not", "winner": "Primary Watch Item", "note": why_not},
+        {"title": "Decision Drivers", "winner": MODE_LABELS.get(mode, mode), "note": decision_driver},
+    ]
+
+
 def render_diagnostic_strip(detail: Dict[str, Any]) -> None:
     rows = compute_five_layer_diagnostic(detail)
     short_labels = {
@@ -1797,10 +1835,11 @@ def render_detail(detail: Dict[str, Any], show_diagnostic: bool = True, show_hea
     render_diagnostic_strip(detail)
     st.markdown('<div class="rule"></div>', unsafe_allow_html=True)
 
+    render_soft_card_grid(build_executive_brief_cards(detail), columns_per_row=3, top_margin="0")
     takeaway_items = "".join(f"<li>{item}</li>" for item in build_dossier_takeaways(detail))
     st.markdown(
         f"""
-        <div class="soft-card" style="margin-bottom:0.9rem;">
+        <div class="soft-card" style="margin-top:0.8rem; margin-bottom:0.9rem;">
             <div class="mini-label">Top Takeaways</div>
             <ul class="subtle-list">{takeaway_items}</ul>
         </div>
@@ -2220,6 +2259,45 @@ def parse_csv_import_text(text: str, default_mode: str = DEFAULT_MODE) -> tuple[
             errors.append(str(exc))
 
     return payloads, errors
+
+
+def split_csv_duplicates(
+    payloads: List[Dict[str, Any]], existing_evaluations: List[Dict[str, Any]]
+) -> tuple[List[Dict[str, Any]], List[Dict[str, str]]]:
+    existing_keys = {
+        (
+            str(((row.get("player") or {}).get("id") or "")).strip().lower(),
+            str(row.get("team_id") or "").strip().lower(),
+        ): row
+        for row in existing_evaluations
+    }
+
+    unique_payloads: List[Dict[str, Any]] = []
+    duplicates: List[Dict[str, str]] = []
+
+    for payload in payloads:
+        player = payload.get("player", {}) or {}
+        ctx = payload.get("ctx", {}) or {}
+        key = (
+            str(player.get("id") or "").strip().lower(),
+            str(ctx.get("team_id") or "").strip().lower(),
+        )
+        existing = existing_keys.get(key)
+        if existing is None:
+            unique_payloads.append(payload)
+            continue
+
+        duplicates.append(
+            {
+                "Player": str(player.get("name") or "Player"),
+                "Player ID": str(player.get("id") or "—"),
+                "Team": str(ctx.get("team_id") or "—"),
+                "Existing Score": format_score(existing.get("overall_score")),
+                "Existing Mode": MODE_LABELS.get(existing.get("mode") or DEFAULT_MODE, existing.get("mode") or DEFAULT_MODE),
+            }
+        )
+
+    return unique_payloads, duplicates
 
 
 def build_compare_export_markdown(left_detail: Dict[str, Any], right_detail: Dict[str, Any]) -> str:
@@ -2666,6 +2744,15 @@ def main() -> None:
             st.warning("A bearer token is required to load the briefing.")
             return
 
+    try:
+        raw_evaluations = get_evaluations(token)
+    except httpx.HTTPStatusError as e:
+        st.error(f"API error loading evaluations: {e.response.status_code} {e.response.text}")
+        return
+    except Exception as e:
+        st.error(f"Unexpected error loading evaluations: {e}")
+        return
+
     mode_filter = preferred_mode if mode_scope == "Focused" else mode_scope
 
     evaluate_tab, board_tab, dossier_tab, compare_tab = st.tabs(
@@ -2720,6 +2807,7 @@ def main() -> None:
                         for error in csv_errors:
                             st.error(error)
                     if csv_payloads:
+                        importable_payloads, duplicate_rows = split_csv_duplicates(csv_payloads, raw_evaluations)
                         preview_rows = [
                             {
                                 "Player": payload["player"]["name"],
@@ -2731,11 +2819,16 @@ def main() -> None:
                             for payload in csv_payloads
                         ]
                         st.dataframe(preview_rows, use_container_width=True, hide_index=True)
-                        if st.button("Import CSV rows", key="import_csv_rows"):
+                        if duplicate_rows:
+                            st.warning(f"{len(duplicate_rows)} row(s) already match an existing player_id + team_id on the board and will be skipped.")
+                            st.dataframe(duplicate_rows, use_container_width=True, hide_index=True)
+                        if csv_payloads and not importable_payloads:
+                            st.info("All uploaded rows already exist on the current board.")
+                        if importable_payloads and st.button("Import non-duplicate rows", key="import_csv_rows"):
                             created_count = 0
                             import_errors: List[str] = []
                             last_new_id: Optional[str] = None
-                            for idx, payload in enumerate(csv_payloads, start=1):
+                            for idx, payload in enumerate(importable_payloads, start=1):
                                 try:
                                     created = create_evaluation(token, payload)
                                     created_count += 1
@@ -2751,7 +2844,11 @@ def main() -> None:
                                 st.session_state["selected_evaluation_id"] = last_new_id
                             st.session_state["load_requested"] = True
                             if created_count:
-                                st.success(f"Imported {created_count} evaluation(s) from CSV.")
+                                skipped_count = len(duplicate_rows)
+                                summary = f"Imported {created_count} evaluation(s) from CSV."
+                                if skipped_count:
+                                    summary += f" Skipped {skipped_count} duplicate row(s)."
+                                st.success(summary)
                             for error in import_errors:
                                 st.error(error)
                             if created_count:
@@ -2832,15 +2929,6 @@ def main() -> None:
                 st.error(f"API error creating evaluation: {e.response.status_code} {e.response.text}")
             except Exception as e:
                 st.error(f"Unexpected error creating evaluation: {e}")
-
-    try:
-        raw_evaluations = get_evaluations(token)
-    except httpx.HTTPStatusError as e:
-        st.error(f"API error loading evaluations: {e.response.status_code} {e.response.text}")
-        return
-    except Exception as e:
-        st.error(f"Unexpected error loading evaluations: {e}")
-        return
 
     evaluations = prepare_evaluations(raw_evaluations, action_filter, hide_placeholder, mode_filter)
     evaluations = sort_evaluations(evaluations, sort_by, descending)

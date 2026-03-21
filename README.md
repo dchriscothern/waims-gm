@@ -1,6 +1,45 @@
 # WAIMS-GM
 
-WAIMS-GM is a basketball decision-support prototype built with a Streamlit frontend, a FastAPI backend, and Supabase-backed auth and persistence. The scoring core is deterministic and mode-aware, with optional LLM augmentation reserved for future workflow enhancements rather than core system logic.
+WAIMS-GM is a basketball decision-support application for turning scattered player notes and roster needs into a structured board, a full dossier, and a side-by-side comparison workflow.
+
+It is built with a Streamlit frontend, a FastAPI backend, and Supabase-backed auth and persistence. The scoring core is deterministic and mode-aware, with optional AI/LLM augmentation reserved for future workflow enhancements rather than core system logic.
+
+## Problem
+
+Basketball staffs often make player decisions across disconnected tools:
+
+- spreadsheets
+- portal lists
+- recruiting notes
+- individual scout writeups
+- verbal staff memory
+
+WAIMS-GM is an attempt to turn that fragmented process into one explainable decision workflow.
+
+## What It Does
+
+WAIMS-GM currently supports:
+
+- creating a player evaluation from structured inputs
+- importing batches of evaluations from CSV
+- scoring each file with a mode-aware deterministic engine
+- saving and revisiting a player board
+- opening a full player dossier
+- comparing two players side-by-side
+- exporting dossier and comparison artifacts for meetings
+
+## Why Deterministic First
+
+The current scoring core is intentionally deterministic instead of ML-first.
+
+Why:
+
+- coaches and operators can inspect why a file graded the way it did
+- recommendations can be tuned by mode without retraining a model
+- the product can prove workflow value before claiming predictive superiority
+- future AI can be added as an assistive layer without turning the core score into a black box
+
+This makes WAIMS-GM easier to trust, demo, debug, and explain.
 
 ## Product Direction
 
@@ -12,6 +51,33 @@ WAIMS-GM is designed as one shared platform that can support multiple basketball
 - `recruiting_only`
 
 The strongest near-term product wedge is small-staff college basketball, especially D2, NAIA, JUCO, and similarly lean environments where explainable roster, portal, and recruiting support is valuable.
+
+## Stack
+
+- Streamlit UI
+- FastAPI API
+- Supabase auth + persistence
+- deterministic scoring engine in `waims_gm/services/__init__.py`
+- local no-auth demo mode for portfolio/interview use
+
+## Roadmap
+
+Near-term:
+
+- continue polishing the executive dossier and compare workflow
+- make imports and demo setup faster
+- improve portfolio assets and screenshots
+
+Mid-term:
+
+- bring in richer external basketball data sources
+- support more realistic staff workflows and team-context inputs
+- add assistive AI for memo drafting, note cleanup, and data normalization
+
+Long-term:
+
+- evaluate whether WAIMS-GM stays a focused stand-alone basketball product
+- or becomes a basketball module within the broader WAIMS platform
 
 ## Live Code Map
 
@@ -30,22 +96,9 @@ The strongest near-term product wedge is small-staff college basketball, especia
 
 Files under `app/auth.py`, `app/models.py`, `app/routes/`, and `app/services/` are compatibility wrappers around `app.main` and should not be treated as separate implementations.
 
-## Current Workflow
-
-The app currently supports:
-
-- creating evaluations
-- batch CSV import through the same evaluation pipeline
-- saving evaluations
-- listing saved evaluations
-- loading dossier/detail views
-- filtering and sorting the board
-- side-by-side comparison
-- dossier markdown export
-- dossier Word export with graceful fallback when `python-docx` is unavailable
-- comparison brief markdown export
-
 ## Architecture
+
+For a deeper walkthrough, see [docs/ARCHITECTURE.md](C:/GitHub/waims-gm/docs/ARCHITECTURE.md).
 
 ### Streamlit UI
 

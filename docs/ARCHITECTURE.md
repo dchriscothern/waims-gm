@@ -76,4 +76,4 @@ flowchart TD
 - explainable dossier and compare workflow
 - sandbox/live runtime separation
 - seeded local demo mode to remove operational risk during demos
-- product framing aimed at lower-resource basketball programs first
+- product framing aimed at small-staff college basketball programs first

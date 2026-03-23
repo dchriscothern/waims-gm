@@ -40,8 +40,8 @@ class TeamContext:
     mode: Optional[str] = None
 
 
-@dataclass(frozen=True)
-class EvaluationScorecard:
+@dataclass
+class Scorecard:
     player: Player
     overall_score: float
     components: Dict[str, float]
@@ -51,11 +51,5 @@ class EvaluationScorecard:
     runner_up_reason: Optional[str] = None
 
 
-@dataclass
-class Scorecard:
-    overall_score: float
-    components: Dict[str, float]
-    assumptions: Dict[str, str]
-    tension_points: List[str]
-    recommended_action: str
-    player: Player
+# Backward-compatible alias for older imports.
+EvaluationScorecard = Scorecard

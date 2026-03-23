@@ -1,8 +1,14 @@
+"""Compatibility wrapper for older imports.
+
+The package-level waims_gm.services.evaluate_single_player function is the
+single source of truth for the live scoring path.
+"""
+
 from __future__ import annotations
 
-from ..domain import EvaluationScorecard, Player, TeamContext
-from ..rulesets.v1_simulator import evaluate_player_v1
+from ..domain import Player, Scorecard, TeamContext
+from . import evaluate_single_player as _live_evaluate_single_player
 
 
-def evaluate_single_player(player: Player, ctx: TeamContext) -> EvaluationScorecard:
-    return evaluate_player_v1(player, ctx)
+def evaluate_single_player(player: Player, ctx: TeamContext) -> Scorecard:
+    return _live_evaluate_single_player(player, ctx)

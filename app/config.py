@@ -24,6 +24,7 @@ API_SCHEME = os.getenv("API_SCHEME", "http").strip() or "http"
 API_BASE_URL = os.getenv("API_BASE_URL", "").strip().rstrip("/")
 if not API_BASE_URL:
     API_BASE_URL = f"{API_SCHEME}://{API_HOSTPORT}".rstrip("/") if API_HOSTPORT else "http://127.0.0.1:8000"
+WAIMS_PYTHON_BASE_URL = os.getenv("WAIMS_PYTHON_BASE_URL", "").strip().rstrip("/")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")

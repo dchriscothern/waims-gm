@@ -5,7 +5,9 @@ from streamlit_app import (
     build_compare_export_markdown,
     build_comparison_verdicts,
     build_decision_lens,
+    build_export_markdown,
     build_roster_need_call,
+    compute_archetype_mix,
 )
 
 
@@ -271,6 +273,110 @@ class ReportingTests(unittest.TestCase):
         self.assertIn("Best long-term asset bet", markdown)
         self.assertIn("Best value decision", markdown)
 
+    def test_compute_archetype_mix_surfaces_guard_creation_identity(self):
+        detail = {
+            "player": {
+                "position": "G",
+                "offense_rating": 81.0,
+                "defense_rating": 62.0,
+                "shooting_rating": 76.0,
+                "playmaking_rating": 88.0,
+                "rebounding_rating": 35.0,
+            }
+        }
+
+        mix = compute_archetype_mix(detail)
+
+        self.assertEqual(len(mix), 3)
+        self.assertEqual(mix[0]["label"], "Lead Creator")
+        self.assertAlmostEqual(sum(item["share"] for item in mix), 100.0, delta=0.2)
+
+    def test_build_compare_export_markdown_includes_archetype_fit(self):
+        left = {
+            "mode": "cbb_d2_low_resource",
+            "player": {
+                "name": "Table Setter",
+                "position": "G",
+                "age": 21,
+                "offense_rating": 76.0,
+                "defense_rating": 66.0,
+                "shooting_rating": 71.0,
+                "playmaking_rating": 84.0,
+                "rebounding_rating": 34.0,
+            },
+            "overall_score": 74.0,
+            "recommended_action": "draft",
+            "components": {
+                "fit": 79.0,
+                "impact": 69.0,
+                "upside": 70.0,
+                "availability": 76.0,
+                "value": 80.0,
+            },
+        }
+        right = {
+            "mode": "cbb_d2_low_resource",
+            "player": {
+                "name": "Wing Spacer",
+                "position": "F",
+                "age": 22,
+                "offense_rating": 71.0,
+                "defense_rating": 77.0,
+                "shooting_rating": 80.0,
+                "playmaking_rating": 58.0,
+                "rebounding_rating": 61.0,
+            },
+            "overall_score": 72.6,
+            "recommended_action": "sign",
+            "components": {
+                "fit": 73.0,
+                "impact": 67.0,
+                "upside": 66.0,
+                "availability": 78.0,
+                "value": 75.0,
+            },
+        }
+
+        markdown = build_compare_export_markdown(left, right)
+
+        self.assertIn("## Archetype Fit", markdown)
+        self.assertIn("Archetype Mix:", markdown)
+
+    def test_build_export_markdown_includes_archetype_mix_section(self):
+        detail = {
+            "mode": "cbb_high_major",
+            "player": {
+                "name": "Two-Way Wing",
+                "position": "F",
+                "age": 22,
+                "expected_cost_tier": 3,
+                "health_risk": 0.14,
+                "upside": 0.74,
+                "minutes_stability": 0.79,
+                "offense_rating": 75.0,
+                "defense_rating": 81.0,
+                "shooting_rating": 78.0,
+                "playmaking_rating": 60.0,
+                "rebounding_rating": 63.0,
+            },
+            "recommended_action": "draft",
+            "overall_score": 77.2,
+            "components": {
+                "fit": 80.0,
+                "impact": 74.0,
+                "upside": 73.0,
+                "availability": 82.0,
+                "value": 76.0,
+            },
+            "ctx": {"needs_by_position": {"G": 0.35, "F": 0.84, "C": 0.24}},
+        }
+
+        markdown = build_export_markdown(detail)
+
+        self.assertIn("## Archetype Mix", markdown)
+        self.assertIn("3-and-D Wing", markdown)
 
 if __name__ == "__main__":
     unittest.main()
+
+

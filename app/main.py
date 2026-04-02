@@ -85,6 +85,16 @@ class EvaluateAndSaveOut(EvaluationOut):
     mode: Optional[str] = None
 
 
+class UpdateEvaluationRequest(BaseModel):
+    player: PlayerIn
+    ctx: TeamContextIn
+    display_name: Optional[str] = None
+    summary_note: Optional[str] = None
+    strengths: Optional[str] = None
+    concerns: Optional[str] = None
+    mode: Optional[str] = "pro_wnba"
+
+
 class EvaluationListItem(BaseModel):
     id: str
     gm_id: str
@@ -297,6 +307,76 @@ def insert_evaluation(
         return str(evaluation_id)
 
 
+def _build_evaluation_payload(
+    *,
+    gm_id: str,
+    ctx_dict: Dict,
+    scorecard,
+    summary_note: Optional[str] = None,
+    strengths: Optional[str] = None,
+    concerns: Optional[str] = None,
+    mode: Optional[str] = None,
+) -> Dict:
+    return {
+        "gm_id": gm_id,
+        "team_id": ctx_dict["team_id"],
+        "player": scorecard.player.__dict__,
+        "ctx": ctx_dict,
+        "overall_score": scorecard.overall_score,
+        "components": scorecard.components,
+        "assumptions": scorecard.assumptions,
+        "tension_points": scorecard.tension_points,
+        "recommended_action": scorecard.recommended_action,
+        "summary_note": summary_note,
+        "strengths": strengths,
+        "concerns": concerns,
+        "mode": mode,
+    }
+
+
+def update_evaluation_record(
+    *,
+    evaluation_id: str,
+    gm_id: str,
+    user_token: str,
+    ctx_dict: Dict,
+    scorecard,
+    summary_note: Optional[str] = None,
+    strengths: Optional[str] = None,
+    concerns: Optional[str] = None,
+    mode: Optional[str] = None,
+) -> Dict:
+    eval_payload = _build_evaluation_payload(
+        gm_id=gm_id,
+        ctx_dict=ctx_dict,
+        scorecard=scorecard,
+        summary_note=summary_note,
+        strengths=strengths,
+        concerns=concerns,
+        mode=mode,
+    )
+    eval_payload.pop("gm_id", None)
+
+    update_url = (
+        f"{SUPABASE_URL}/rest/v1/gm_evaluations"
+        f"?id=eq.{evaluation_id}"
+        f"&gm_id=eq.{gm_id}"
+    )
+
+    with httpx.Client(timeout=15) as client:
+        update_headers = _sb_headers(user_token) | {"Prefer": "return=representation"}
+        response = _perform_supabase_request(
+            "evaluation update",
+            lambda: client.patch(update_url, headers=update_headers, json=eval_payload),
+        )
+        _raise_for_supabase_error("evaluation update", response)
+        rows = response.json() if response.text else []
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="Evaluation not found")
+    return rows[0]
+
+
 @app.get("/health")
 def health():
     return {
@@ -368,6 +448,58 @@ def evaluate_and_save(
         strengths=req.strengths,
         concerns=req.concerns,
         mode=req.mode,
+    )
+
+
+@app.patch("/evaluations/{evaluation_id}", response_model=EvaluationDetailOut)
+def update_evaluation(
+    evaluation_id: str,
+    req: UpdateEvaluationRequest,
+    gm: AuthedGM = Depends(get_current_gm),
+):
+    ctx_dict = req.ctx.model_dump()
+    ctx_dict["gm_id"] = gm["gm_id"]
+    ctx_dict["mode"] = req.mode or "pro_wnba"
+
+    player = Player(**req.player.model_dump())
+    ctx = TeamContext(**ctx_dict)
+    scorecard = evaluate_single_player(player, ctx)
+
+    if req.display_name:
+        upsert_gm_profile(
+            gm_id=gm["gm_id"],
+            user_token=gm["token"],
+            display_name=req.display_name,
+        )
+
+    row = update_evaluation_record(
+        evaluation_id=evaluation_id,
+        gm_id=gm["gm_id"],
+        user_token=gm["token"],
+        ctx_dict=ctx_dict,
+        scorecard=scorecard,
+        summary_note=req.summary_note,
+        strengths=req.strengths,
+        concerns=req.concerns,
+        mode=req.mode,
+    )
+
+    return EvaluationDetailOut(
+        id=str(row["id"]),
+        gm_id=str(row["gm_id"]),
+        team_id=row.get("team_id"),
+        overall_score=row["overall_score"],
+        components=row.get("components", {}),
+        assumptions=row.get("assumptions", {}),
+        tension_points=row.get("tension_points", []),
+        recommended_action=row["recommended_action"],
+        player=row["player"],
+        ctx=row["ctx"],
+        created_at=row.get("created_at"),
+        summary_note=row.get("summary_note"),
+        strengths=row.get("strengths"),
+        concerns=row.get("concerns"),
+        mode=row.get("mode"),
     )
 
 

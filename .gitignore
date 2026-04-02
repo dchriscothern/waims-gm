@@ -23,3 +23,6 @@ dist/
 # OS/editor noise
 .DS_Store
 Thumbs.db
+
+# Local generated tooling state
+Ultralytics/

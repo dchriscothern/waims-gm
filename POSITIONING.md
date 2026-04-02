@@ -35,9 +35,29 @@ The strongest near-term wedge is small-staff college basketball:
 - NCAA D2
 - NAIA
 - JUCO
-- smaller-staff college programs
+- lower-major programs
+- many women's basketball programs
 
 This is the cleanest starting market because the pain point is real, the staffing gap is obvious, and the ROI story is easier to explain than it is for pro or high-major programs with larger internal resources.
+
+## Buyer and User
+
+The primary buyer is usually one of:
+
+- director of basketball operations
+- GM-equivalent or portal lead
+- head coach
+- recruiting / roster strategy lead
+
+The day-to-day users can include:
+
+- basketball ops
+- coaches
+- recruiting staff
+- sport science
+- medical / athletic training
+
+The product should feel usable by sports professionals without requiring engineering support.
 
 ## WAIMS-GM vs WAIMS Python
 
@@ -73,3 +93,4 @@ WAIMS-GM could become a WAIMS module later when:
 - For coaches: "WAIMS-GM helps your staff move from scattered notes to a clear, meeting-ready player decision with context, tradeoffs, and a usable dossier."
 - For GMs: "WAIMS-GM is not a black-box AI GM; it is a structured basketball decision-support workflow for ranking, comparing, and defending acquisition decisions."
 - For investors: "WAIMS Python is the platform layer, but WAIMS-GM is the wedge product: a focused, sellable basketball application with a clear initial market in small-staff college programs."
+- For smaller staffs: "WAIMS-GM democratizes access to a real board, dossier, staff-reporting, and recruiting workflow without requiring a custom analytics team."

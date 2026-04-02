@@ -1,6 +1,12 @@
 import unittest
 
-from streamlit_app import build_csv_sample_text, build_csv_template_text, parse_csv_import_text, split_csv_duplicates
+from streamlit_app import (
+    build_csv_sample_text,
+    build_csv_template_text,
+    derive_medical_diligence_profile,
+    parse_csv_import_text,
+    split_csv_duplicates,
+)
 
 
 class CsvImportTests(unittest.TestCase):
@@ -70,6 +76,25 @@ Coach Demo,p901,Riley Stone,F,21,71,75,72,58,65,0.14,0.66,0.79,2,team-y,unknown,
         self.assertEqual(duplicates[0]["Team"], "team-x")
         self.assertEqual(len(duplicate_matches), 1)
         self.assertEqual(duplicate_matches[0]["existing"]["id"], "eval-1")
+
+    def test_derive_medical_diligence_profile_returns_advisory_overlay(self):
+        detail = {
+            "id": "eval-1",
+            "team_id": "team-1",
+            "player": {
+                "id": "p300",
+                "name": "Prospect Wing",
+                "health_risk": 0.22,
+                "minutes_stability": 0.75,
+            },
+            "components": {"availability": 79.0},
+        }
+
+        diligence = derive_medical_diligence_profile(detail)
+
+        self.assertEqual(diligence["level"], "Proceed with caution")
+        self.assertEqual(diligence["source"], "Awaiting public-file review")
+        self.assertEqual(diligence["gm_note"], "")
 
 
 if __name__ == "__main__":

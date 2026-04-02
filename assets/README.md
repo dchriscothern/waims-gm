@@ -4,24 +4,24 @@ Add screenshots or a short GIF here for portfolio and product presentation use.
 
 Recommended files:
 
-- `board-overview.png`
-- `dossier-view.png`
-- `compare-view.png`
+- `board_view.png`
+- `dossier_view.png`
+- `compare_view.png`
 - `workflow-actions.png`
 - `demo-walkthrough.gif`
 
 Capture order:
 
-1. `board-overview.png`
+1. `board_view.png`
    - show the `Board` tab
    - use multiple seeded files
    - keep the board sorted and readable
 
-2. `dossier-view.png`
+2. `dossier_view.png`
    - show the `Player Dossier` tab
    - capture the top executive brief, diagnostic snapshot, and the start of the file
 
-3. `compare-view.png`
+3. `compare_view.png`
    - show the `Compare` tab
    - capture the comparison summary, decision snapshot, and verdict cards
 

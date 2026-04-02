@@ -1,6 +1,6 @@
 # WAIMS-GM
 
-WAIMS-GM is a basketball decision-support application for turning scattered player notes and roster needs into a structured board, a full dossier, and a side-by-side comparison workflow.
+WAIMS-GM is the commercial wedge in the WAIMS product family: a basketball decision-support application built for smaller staffs that need a real board, dossier, staff-reporting workflow, and recruiting intake without hiring a custom analytics team.
 
 It is built with a Streamlit frontend, a FastAPI backend, and Supabase-backed auth and persistence. The scoring core is deterministic and mode-aware, with optional AI/LLM augmentation reserved for future workflow enhancements rather than core system logic.
 
@@ -24,27 +24,36 @@ It is built with a Streamlit frontend, a FastAPI backend, and Supabase-backed au
 
 ## Problem
 
-Basketball staffs often make player decisions across disconnected tools:
+Smaller basketball staffs often make player decisions across disconnected tools:
 
 - spreadsheets
 - portal lists
 - recruiting notes
 - individual scout writeups
 - verbal staff memory
+- one-off consultant help
 
-WAIMS-GM is an attempt to turn that fragmented process into one explainable decision workflow.
+WAIMS-GM turns that fragmented process into one explainable decision workflow that basketball ops, coaches, sport science, and medical staff can actually use without engineering support.
 
 ## What It Does
 
 WAIMS-GM currently supports:
 
 - creating a player evaluation from structured inputs
+- reusing team-context presets during intake
 - importing batches of evaluations from CSV
 - scoring each file with a mode-aware deterministic engine
 - saving and revisiting a player board
+- editing a saved evaluation without creating a duplicate
 - opening a full player dossier
+- separating player-file review from staff-report workflow
 - comparing two players side-by-side
 - exporting dossier and comparison artifacts for meetings
+- running a structured `Med Diligence` and prospect-research workflow with evidence logging
+- role-specific GM / Sport Science / Medical collaboration in local demo mode
+- framing each player as a simple `Level / Delta` bet:
+  - `Level` = expected contribution band
+  - `Delta` = how much the outcome could swing
 
 ## Why Deterministic First
 
@@ -59,16 +68,55 @@ Why:
 
 This makes WAIMS-GM easier to trust, demo, debug, and explain.
 
+## Level / Delta Lens
+
+WAIMS-GM uses a simple `Level / Delta` lens to make the dossier easier to read:
+
+- `Level` answers: what kind of contributor do we think this player is if things go roughly to plan?
+- `Delta` answers: how wide is the outcome band, and how much could this bet swing up or down?
+
+This keeps the product focused on decision quality, not black-box prediction language. It is especially useful for smaller staffs that need to:
+
+- avoid misses
+- identify rotation-value contributors
+- price volatility correctly
+
+Credit for the `Level / Delta` framing: **John Chisholm**.
+
+Reference:
+
+- Rebelo, et al. (2026). *Monitoring Training Effects in Athletes: A Multidimensional Framework for Decision-Making.* Sports Medicine. [https://lnkd.in/e6zWGQY5](https://lnkd.in/e6zWGQY5)
+
 ## Product Direction
 
-WAIMS-GM is designed as one shared platform that can support multiple basketball contexts:
+WAIMS-GM is designed as the first sellable product in the broader WAIMS suite. It supports multiple basketball contexts today:
 
-- `pro_wnba`
-- `cbb_high_major`
-- `cbb_d2_low_resource`
-- `recruiting_only`
+- `Pro / WNBA`
+- `CBB High-Major`
+- `CBB D2-3 NAIA Juco`
+- `Recruiting Only`
 
-The strongest near-term product wedge is small-staff college basketball, especially D2, NAIA, JUCO, and similarly lean environments where explainable roster, portal, and recruiting support is valuable.
+The strongest near-term product wedge is small-staff college basketball, especially D2, NAIA, JUCO, lower-major, and many women’s programs where explainable roster, portal, and recruiting support is valuable.
+
+## Commercial Positioning
+
+WAIMS-GM should be pitched as:
+
+- an affordable basketball operations product, not a consulting engagement
+- an alternative to spreadsheet chaos, custom builds, and overbuilt enterprise stacks
+- a workflow product that democratizes access to board, dossier, staff-report, and recruiting capabilities for programs without dedicated data teams
+
+This means the launch packaging is:
+
+- `Starter`: WAIMS-GM only
+- `Performance Add-On`: WAIMS Python for athlete monitoring and readiness operations
+- `Advisory Setup`: optional onboarding, workflow setup, and data cleanup
+
+## Privacy Boundary
+
+WAIMS-GM is a front-office decision workspace, not a medical record system. The `Med Diligence` layer is limited to public-file review, movement observations, and advisory risk framing for outside prospects.
+
+See [PRIVACY.md](/C:/GitHub/waims-gm/PRIVACY.md) for the FERPA / privacy boundary used by this repo.
 
 ## Stack
 
@@ -82,14 +130,15 @@ The strongest near-term product wedge is small-staff college basketball, especia
 
 Near-term:
 
-- continue polishing the executive dossier and compare workflow
-- make imports and demo setup faster
-- improve portfolio assets and screenshots
+- keep the sellable wedge focused on `CBB D2-3 / NAIA / JUCO`
+- keep `Create -> Save -> Board -> Dossier -> Compare -> Export` stable and demo-safe
+- improve reusable team context presets and edit-after-save workflow
+- keep the WAIMS Python diligence handoff lightweight, visible, and clearly separate from protected medical records
 
 Mid-term:
 
 - bring in richer external basketball data sources
-- support more realistic staff workflows and team-context inputs
+- support more realistic staff workflows, collaboration, and team-context inputs
 - add assistive AI for memo drafting, note cleanup, and data normalization
 
 Long-term:
@@ -192,63 +241,40 @@ python -m venv .venv
 Copy-Item .env.sandbox.example .env
 ```
 
-### Interview-Safe Demo Mode
+### Interview-safe local demo mode
 
-WAIMS-GM now supports a local no-auth demo mode for interviews and portfolio walkthroughs.
-
-When `WAIMS_DEMO_MODE=1`:
-
-- no Supabase token is required
-- no FastAPI backend is required
-- canonical demo dossiers load directly inside Streamlit
-- create, compare, delete, and export flows still work in local session state
-
-Fastest launch path:
+Run the app with in-memory demo dossiers and no backend/auth dependency:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\demo_bootstrap.ps1
 ```
 
-This opens Streamlit in local interview mode.
+This mode uses:
 
-### Full Stack Local Demo
+- local deterministic scoring
+- in-memory demo dossiers
+- no bearer token
+- no FastAPI requirement
+- no Supabase dependency
 
-If you want the full sandbox stack instead of local demo mode:
+### Full local stack
+
+Start the backend:
+
+```powershell
+C:\GitHub\waims-gm\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+Start the frontend:
+
+```powershell
+C:\GitHub\waims-gm\.venv\Scripts\python.exe -m streamlit run streamlit_app.py
+```
+
+Optional helper script for full-stack startup:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\demo_bootstrap.ps1 -FullStack
-```
-
-To start full stack and reseed canonical demo data:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\demo_bootstrap.ps1 -FullStack -SeedDemoData
-```
-
-Then fill in the Supabase values in `.env`.
-
-### Start the backend
-
-```powershell
-.venv\Scripts\python.exe -m uvicorn app.main:app --reload
-```
-
-### Check backend health
-
-```powershell
-Invoke-WebRequest http://127.0.0.1:8000/health | Select-Object -Expand Content
-```
-
-Expected shape:
-
-```json
-{"ok":true,"environment":"sandbox","environment_label":"Sandbox","live":false}
-```
-
-### Start the frontend
-
-```powershell
-.venv\Scripts\python.exe -m streamlit run streamlit_app.py
 ```
 
 ## End-to-End Manual QA
@@ -343,96 +369,64 @@ Before local demos or deployment, run the preflight script:
 C:\GitHub\waims-gm\.venv\Scripts\python.exe scripts\preflight.py
 ```
 
-If the backend is already running, use:
+Optional health check once the API is running:
 
 ```powershell
 C:\GitHub\waims-gm\.venv\Scripts\python.exe scripts\preflight.py --check-health
 ```
 
-What it checks:
+The preflight script verifies:
 
-- required Supabase settings are present
-- API URL shape is valid
-- live environments are not pointed at localhost
-- sandbox/live labels are consistent
-- optional `/health` environment check matches the current env
+- required environment variables are present
+- placeholder values are rejected
+- `live` is not pointed at obviously fake/sandbox configuration
+- `/health` matches the intended environment when requested
 
-Recommended operator checklist before deploy:
+## Deploying to Render
 
-1. Confirm `.env` or deployment secrets match either sandbox or live, not a mix.
-2. Run `scripts\preflight.py`.
-3. For running services, run `scripts\preflight.py --check-health`.
-4. Run the test suite.
-5. Verify the Streamlit UI shows the correct environment badge.
-6. Verify sandbox and live point at different Supabase projects.
+A Render blueprint file is included at `render.yaml`.
 
-## Interview And Portfolio Prep
+Note: the current blueprint defines both sandbox and live services. If you want to run only one environment at first, delete the unused services from `render.yaml` before creating the Blueprint, or disable those services in the Render dashboard after import.
 
-Best interview path:
+### Render service commands
 
-1. Use local interview mode via `scripts\demo_bootstrap.ps1`.
-2. Demo `Board & Dossiers`.
-3. Show one dossier, then compare mode, then export.
-4. Explain the deterministic scoring core and the sandbox/live split.
-5. Use [POSITIONING.md](C:/GitHub/waims-gm/POSITIONING.md) for the product story.
+Backend start command:
 
-Recommended screenshot set:
+```bash
+python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
 
-- board tab with multiple seeded dossiers
-- one dossier with recommendation, score cards, and decision lens
-- compare section with decision snapshot and verdict cards
-- export workflow section
-- sidebar showing sandbox or local demo mode
+Frontend start command:
 
-## Live Deployment Target
+```bash
+python -m streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port $PORT
+```
 
-The cleanest first live shape is:
+### Suggested sandbox env vars
 
-- Supabase for auth and persistence
-- FastAPI deployed as one web service
-- Streamlit deployed as a separate web service
-- separate sandbox and live env vars
+```text
+WAIMS_ENV=sandbox
+WAIMS_ENV_LABEL=Sandbox
+API_BASE_URL=https://your-sandbox-api-domain
+SUPABASE_URL=https://your-sandbox-project.supabase.co
+SUPABASE_ANON_KEY=...
+SUPABASE_JWT_AUD=authenticated
+```
 
-That gives you:
+### Suggested live env vars
 
-- a real GM-facing live environment
-- a safe sandbox for QA and demos
-- clean separation between public UI and API runtime
+```text
+WAIMS_ENV=live
+WAIMS_ENV_LABEL=Live
+API_BASE_URL=https://your-live-api-domain
+SUPABASE_URL=https://your-live-project.supabase.co
+SUPABASE_ANON_KEY=...
+SUPABASE_JWT_AUD=authenticated
+```
 
-For a first production pass, keep sandbox and live on separate URLs and separate Supabase projects. Do not point sandbox and live at the same tables.
+## Notes
 
-### Render Blueprint
-
-The repo now includes [render.yaml](C:/GitHub/waims-gm/render.yaml), which defines four Render web services:
-
-- `waims-gm-api-sandbox`
-- `waims-gm-ui-sandbox`
-- `waims-gm-api-live`
-- `waims-gm-ui-live`
-
-Notes:
-
-- the UI services reach their matching API services over Render private networking via `API_HOSTPORT`
-- backend health checks use `/health`
-- Supabase secrets are marked `sync: false` so you fill them in from the Render dashboard
-
-Suggested Render flow:
-
-1. Push this repo to GitHub.
-2. In Render, create a new Blueprint from the repo.
-3. Let Render read `render.yaml`.
-4. For `waims-gm-api-sandbox`, set sandbox `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
-5. For `waims-gm-api-live`, set live `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
-6. Deploy sandbox first and confirm `/health` returns `sandbox`.
-7. Open the sandbox UI and confirm the header badge says `Sandbox`.
-8. Only after sandbox is verified, deploy and validate the live pair.
-
-If you want to run only one environment at first, delete the unused services from `render.yaml` before creating the Blueprint, or disable those services in the Render dashboard after import.
-
-## Current Priorities
-
-- keep the backend consolidated around `app/main.py`
-- expand automated tests as the product grows
-- refine mode-specific scoring
-- improve meeting-ready compare and reporting workflows
-- keep the system LLM-agnostic at the core
+- Do not commit real `.env` files.
+- Do not commit Supabase service-role keys.
+- The frontend and backend both show the active environment label so you can tell if you are in `sandbox` or `live`.
+- Use separate Supabase projects for sandbox and live whenever possible.

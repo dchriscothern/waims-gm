@@ -1,354 +1,271 @@
-\# CLAUDE.md
+# CLAUDE.md — WAIMS-GM
 
+## Environment
+This repo supports two explicit runtime environments:
+- `sandbox` branch → development and QA work
+- `main` branch → live / production-ready
 
+Always confirm which environment you are in before making changes. The Streamlit header and sidebar show the active environment label. Do not treat `main` as a safe place to experiment.
 
-\## Environment: SANDBOX / STAGING
+## Sandbox Workflow
+For local run commands, sandbox → main process, and Streamlit Cloud setup:
+See `C:\GitHub\_docs\STREAMLIT-WORKFLOW.md`
 
+---
 
+## HOW TO APPROACH EVERY TASK
 
-\* This is a development and experimentation environment
+**Before writing any code:**
+1. State your interpretation of the task explicitly
+2. If ambiguous, list interpretations and ask — do not pick one silently and run
+3. Name the specific files you plan to touch and why
+4. If a simpler approach exists, say so before starting
 
-\* Safe to test new features, refactors, and architecture changes
+**Minimum code rule:**
+Write the minimum code that solves the problem. No speculative features, no added configurability that wasn't asked for, no abstractions built for hypothetical future use. The scoring core is intentionally deterministic — do not add complexity to it without being asked.
 
-\* Breaking changes are acceptable if they improve structure
+**Surgical changes only:**
+Touch only what the task requires. Do not improve adjacent code, reformat unrelated files, or refactor things that aren't broken. Match existing style. If you notice issues elsewhere, mention them — do not fix them without being asked. Remove imports/variables/functions only if YOUR changes made them unused.
 
-\* Temporary debug code and logging are allowed
+**Verify before finishing:**
+For any multi-step task, state success criteria before starting:
+- What will be different when this is done?
+- What will you check to confirm it worked?
+Run `python -m pytest -q` and do a quick UI smoke test on affected views before marking done.
 
-\* Prioritize speed of iteration over polish
+**When confused:**
+Stop. Name what's unclear. Ask. The scoring engine, privacy boundaries, and role separation in this repo are intentional — do not change them based on assumptions.
 
-\* UI can be rough if functionality is being tested
+---
 
-\* Validate ideas here before promoting to production
+## Project
 
+WAIMS-GM is the commercial wedge in the WAIMS product family: a basketball decision-support application for smaller staffs that need a board, dossier, staff-reporting workflow, and recruiting intake without hiring a custom analytics team.
 
+- **Repo:** `C:\GitHub\waims-gm`
+- **Primary target market:** D2, NAIA, JUCO, lower-major D1, women's programs
+- **Demo mode:** local in-memory, no backend/auth required
+- **Full stack:** Streamlit + FastAPI + Supabase
 
-\---
+---
 
+## Stack
 
+- **Frontend:** `streamlit_app.py` — intake form, board, dossier, compare, export
+- **Backend:** `app/main.py` — FastAPI, all API models, auth validation, persistence helpers, live endpoint behavior
+- **Scoring engine:** `waims_gm/services/__init__.py` — deterministic, mode-aware
+- **Domain models:** `waims_gm/domain.py`
+- **Config:** `app/config.py`
 
-\## Project
+### Source of truth rule
+`app/main.py` is the backend source of truth. Files under `app/auth.py`, `app/models.py`, `app/routes/`, and `app/services/` are compatibility wrappers — do not treat them as separate implementations or edit them as if they own the logic.
 
+---
 
+## Core Navigation (freeze this structure)
 
-WAIMS (Wellness and Injury Management System) is a Python + Streamlit athlete monitoring dashboard for performance staff. It tracks readiness, flags injury risk, and manages load for a 12-player anonymized women's basketball roster. Currently a portfolio/demo tool modeled on a WNBA context. V1 uses synthetic demo data.
+- `Create Evaluation`
+- `Board`
+- `Player Dossier`
+- `Staff Reports`
+- `Compare`
+- `Recruiting`
 
+Do not add nav items, rename these, or restructure the top-level flow without being asked.
 
+---
 
-Live URL: \[https://waims-python-zzikytfewmqiwwfhrdajwo.streamlit.app/]
+## Scoring Engine — CRITICAL RULES
 
-Repo: dchriscothern/waims-python
+The scoring core is **intentionally deterministic**, not ML-first.
 
+- Do not add ML or probabilistic scoring to the core engine without explicit direction
+- Do not change mode-aware scoring behavior without understanding which modes are affected
+- AI/LLM augmentation is reserved for future assistive layers (memo drafting, note cleanup) — not core scoring
+- The `Level / Delta` lens is the primary decision framing — do not replace or rename it
 
+**Level / Delta:**
+- `Level` = expected contribution band if things go roughly to plan
+- `Delta` = outcome band width — how much the bet could swing
 
-\---
+Credit: John Chisholm.
 
+---
 
+## Supported Modes
 
-\## Stack
+```
+Pro / WNBA
+CBB High-Major
+CBB D2-3 NAIA Juco
+Recruiting Only
+```
 
+Mode-aware scoring behavior must be tested when changes touch the scoring engine. Run `python -m pytest -q` and verify mode output is consistent.
 
+---
 
-\* Frontend: Streamlit
+## Role Separation
 
-\* Database: SQLite (local), Supabase (future)
+Three roles operate in demo mode: GM, Sport Science, Medical.
 
-\* Visualization: Plotly
+- GM sees workflow and readouts
+- Sport Science / Medical see the same surfaces with appropriate edit permissions
+- Do not add role-specific nav sprawl — roles share the same nav, permissions differ
 
-\* ML: Random Forest (train\_models.py)
+---
 
-\* Hosting: Streamlit Cloud via GitHub
+## Privacy Boundary — DO NOT CROSS
 
+WAIMS-GM is a **front-office decision workspace**, not a medical record system.
 
+- `Med Diligence` = public-file review, movement observations, advisory risk framing for outside prospects only
+- No protected student medical records
+- No diagnosis, treatment, or clearance claims
+- See `PRIVACY.md` for the FERPA boundary
 
-\---
+If a task would blur this boundary, stop and ask before proceeding.
 
+---
 
+## Demo Mode
 
-\## File Roles
+Run interview-safe local demo with no backend or auth dependency:
 
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\demo_bootstrap.ps1
+```
 
+Demo mode uses:
+- local deterministic scoring
+- in-memory demo dossiers
+- no bearer token
+- no FastAPI requirement
+- no Supabase dependency
 
-\* dashboard.py → app entry point, controls tab routing
+Full stack local run:
 
-\* \*\_tab.py → UI layer only (no heavy data logic)
+```powershell
+# Backend
+C:\GitHub\waims-gm\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 
-\* \*\_module.py → calculations, transformations, metrics
+# Frontend
+C:\GitHub\waims-gm\.venv\Scripts\python.exe -m streamlit run streamlit_app.py
+```
 
-\* train\_models.py → model training only (offline, not runtime)
+---
 
-\* model\_validation.py → validation logic only
+## Validation Commands
 
-\* data\_quality.py → input checks and validation rules
+```powershell
+python -m pytest -q
+uvicorn app.main:app --reload
+streamlit run streamlit_app.py
+```
 
-\* improved\_gauges.py → reusable UI components
+Preflight check before demos or deployment:
 
-\* research\_context.py → research citations and supporting evidence
+```powershell
+C:\GitHub\waims-gm\.venv\Scripts\python.exe scripts\preflight.py
+```
 
+Optional health check once API is running:
 
+```powershell
+C:\GitHub\waims-gm\.venv\Scripts\python.exe scripts\preflight.py --check-health
+```
 
-Rule:
+---
 
-UI files should not contain heavy data processing.
+## Branch and Release Rules
 
+- `sandbox` → active development, QA, feature branches
+- `main` → live/production-ready, deployable at all times
+- Feature branches: start from `sandbox`, merge back to `sandbox`
+- Release: `sandbox → main` only when stable and validated
 
+Do not push directly to `main`. Do not merge to `main` without running validation commands and a UI smoke test.
 
-\---
+---
 
+## Environment Config
 
+Use `.env.sandbox.example` for local and QA work. Never commit real `.env` files or Supabase service-role keys.
 
-\## Tab Structure (8 tabs)
+Key variables: `WAIMS_ENV`, `WAIMS_ENV_LABEL`, `API_BASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_JWT_AUD`
 
+Use separate Supabase projects for sandbox and live whenever possible.
 
+---
 
-1\. Roster Overview
+## File Responsibilities
 
-2\. Athlete Profile
+- `streamlit_app.py` → all UI: intake, board, dossier, compare, export, environment badge
+- `app/main.py` → backend source of truth: API models, auth, persistence, endpoints
+- `waims_gm/services/__init__.py` → scoring engine (deterministic, do not touch casually)
+- `waims_gm/domain.py` → domain models
+- `app/config.py` → shared environment config
 
-3\. GPS \& Load
+---
 
-4\. Availability \& Injuries
+## Common Failure Points
 
-5\. Force Plate (CMJ/RSI)
+- Editing compatibility wrappers (`app/auth.py`, `app/models.py`, `app/routes/`, `app/services/`) as if they own logic — they don't, `app/main.py` does
+- Scoring behavior changing across modes after edits — always run tests
+- Environment label mismatch (header says sandbox but hitting live Supabase) — check `.env` before testing
+- Demo mode breaking due to backend dependency creeping into the no-auth path
+- Privacy boundary blur — Med Diligence content becoming clinical or clearance-adjacent
 
-6\. Z-Score Baselines
+---
 
-7\. Research Context
+## Positioning — Do Not Contradict in UI Copy or Demo Content
 
-8\. \[Update name when finalized]
+WAIMS-GM is:
+- an affordable basketball operations product, not a consulting engagement
+- an alternative to spreadsheet chaos and overbuilt enterprise stacks
+- a workflow product that democratizes board, dossier, staff-report, and recruiting capabilities for programs without dedicated data teams
 
+WAIMS-GM is NOT:
+- an enterprise product targeting high-major programs first
+- a predictive ML system
+- a medical records or clearance system
+- a generic AI service
 
+Do not add language to the UI, demo content, or any user-visible copy that contradicts these positions.
 
-\---
+---
 
+## Separate Products — Do Not Confuse
 
+- **WAIMS-GM** = this repo. Front-office decision support. Basketball ops, recruiting, dossier, staff reports.
+- **WAIMS Python** = `dchriscothern/waims-python`. Athlete monitoring dashboard. Readiness, CMJ/RSI, GPS, z-score baselines. WNBA context.
+- **InnerAthlete** = separate repo. Multi-role performance intelligence platform. Blood + DNA + Cognitive pillars.
 
-\## Data Flow
+Never pull WAIMS Python athlete monitoring content, CMJ/force plate language, or InnerAthlete pillar framing into WAIMS-GM.
 
+---
 
+## Key Reference Files
 
-Data
+- `DEMO_SCRIPT.md` — walkthrough for demos
+- `POSITIONING.md` — product positioning detail
+- `PRIVACY.md` — FERPA/privacy boundary
+- `docs/ARCHITECTURE.md` — architecture walkthrough
+- `supabase/waims_gm_schema.sql` — Supabase schema and RLS setup
+- `scripts/seed_demo_data.py` — demo data seeding
+- `examples/waims_gm_import_sample.csv` — sample CSV import
 
-→ preprocessing (z\_score\_module, data\_quality)
+---
 
-→ modeling (optional, train\_models)
-
-→ tab-level logic
-
-→ UI rendering (Streamlit)
-
-
-
-Principles:
-
-
-
-\* Data transformation happens before UI
-
-\* UI only displays processed outputs
-
-\* Models are not run inside UI render loop
-
-
-
-\---
-
-
-
-\## Stable Rules
-
-
-
-\* Keep coach-facing outputs simple and practical
-
-\* Keep sport scientist outputs more technical
-
-\* Do not casually change evidence-based thresholds
-
-\* Prefer editing real source files instead of generated outputs
-
-\* WAIMS\_Coach\_Overview.pdf should remain a true one-pager
-
-\* WAIMS\_SportScientist\_Overview.pdf can be multi-page
-
-\* Emoji-free UI
-
-\* Text-only status labels
-
-\* Left-border color coding + horizontal fill bars
-
-\* Z-score personal baselines alongside absolute thresholds (not either/or)
-
-\* Force plate (CMJ/RSI) is primary fatigue signal, not GPS alone
-
-\* Research citations prioritize female/basketball-specific sources
-
-&#x20; (Roberts 2019, Fort-Vanmeerhaeghe 2020, Hewett 2006)
-
-
-
-\---
-
-
-
-\## How to Work in This Repo
-
-
-
-When given a task:
-
-
-
-1\. Identify the entry point (usually dashboard.py)
-
-2\. Trace how data flows into the relevant tab/module
-
-3\. Identify root cause before suggesting changes
-
-4\. Propose minimal fix first
-
-5\. In sandbox, refactors are encouraged if they improve clarity or scalability
-
-
-
-When editing:
-
-
-
-\* Show exact file(s) to change
-
-\* Show before → after code
-
-\* Prefer modular, reusable structure
-
-\* Keep UI and logic separated
-
-
-
-When unsure:
-
-
-
-\* Ask a clarifying question instead of guessing
-
-
-
-\---
-
-
-
-\## Common Failure Points
-
-
-
-\* Tab not rendering due to incorrect import or function call
-
-\* Streamlit tabs misaligned with function definitions
-
-\* Mixing UI code and data logic
-
-\* Incorrect data shape passed into visual components
-
-\* Z-score calculations using wrong baseline reference
-
-
-
-Always check these first when debugging.
-
-
-
-\---
-
-
-
-\## Context Files
-
-
-
-\* WAIMS\_GLOBAL\_CONTEXT.md → long-term system thinking
-
-\* WAIMS\_SESSION\_HANDOFF.md → short-term continuity
-
-
-
-CLAUDE.md = execution rules (primary file)
-
-
-
-\---
-
-
-
-\## Session State
-
-
+## Session State
 
 (Update at the end of every session)
 
+**Last completed:**
+- [ ]
 
+**Known issues:**
+- [ ]
 
-Last completed:
-
-
-
-\* \[ ]
-
-
-
-Known issues:
-
-
-
-\* \[ ]
-
-
-
-Next priority:
-
-
-
-\* \[ ]
-
-
-
-\---
-
-
-
-\## Compacting
-
-
-
-When compacting, preserve:
-
-
-
-\* current task
-
-\* files inspected or changed
-
-\* important commands
-
-\* decisions already made
-
-\* blockers or open questions
-
-
-
-Do not preserve in detail:
-
-
-
-\* long logs
-
-\* repeated repo descriptions
-
-\* unrelated exploration
-
-\* rejected approaches unless still relevant
-
-
-
-\---
-
-
-
+**Next priority:**
+- [ ]
